@@ -1,0 +1,39 @@
+{
+  "name": "lang-tools-mcp",
+  "version": "0.1.0",
+  "description": "MCP tools to automate lint fixes for Java and Kotlin",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "lang-tools-mcp": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "npm run typecheck && esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=build/index.js --external:tree-sitter --external:tree-sitter-java --external:tree-sitter-kotlin --external:@modelcontextprotocol/sdk --sourcemap && chmod +x build/index.js",
+    "build:dev": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "0.6.0",
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-java": "^0.21.0",
+    "tree-sitter-kotlin": "^0.3.6"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.11.24",
+    "esbuild": "^0.19.11",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  }
+}

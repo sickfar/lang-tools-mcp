@@ -37,6 +37,13 @@ bower_components
 # Compiled binary addons (https://nodejs.org/api/addons.html)
 build/Release
 
+# Build output
+build/
+*.map
+
+# Test temp files
+__tests__/temp/
+
 # Dependency directories
 node_modules/
 jspm_packages/
