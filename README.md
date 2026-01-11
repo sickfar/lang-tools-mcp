@@ -2,6 +2,8 @@
 
 MCP (Model Context Protocol) server that provides tools to automate lint fixes for Java and Kotlin code. Currently supports cleaning up unused imports.
 
+[![Tests](https://github.com/sickfar/lang-tools-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/sickfar/lang-tools-mcp/actions/workflows/test.yml)
+
 ## Features
 
 This MCP server provides two tools:
@@ -49,19 +51,63 @@ Cleans up unused imports in Kotlin files using tree-sitter parsing.
 
 ## Installation
 
+### Option 1: Install from GitHub (Recommended)
+
+**Using npx (recommended for Claude Desktop):**
+
+No installation needed! The server is automatically downloaded and cached when first used.
+
+**Using npm global install:**
+
 ```bash
+npm install -g git+https://github.com/sickfar/lang-tools-mcp.git
+```
+
+### Option 2: Clone and Build Locally
+
+```bash
+git clone https://github.com/sickfar/lang-tools-mcp.git
+cd lang-tools-mcp
 npm install
 npm run build
 ```
 
-## Usage with MCP Clients
+## Usage with Claude Desktop
 
-### Configuration for Claude Desktop
+### Configuration
 
 Add to your Claude Desktop configuration file:
 
-**MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+**Using npx (recommended):**
+
+```json
+{
+  "mcpServers": {
+    "lang-tools": {
+      "command": "npx",
+      "args": ["-y", "git+https://github.com/sickfar/lang-tools-mcp.git"]
+    }
+  }
+}
+```
+
+**Using global installation:**
+
+```json
+{
+  "mcpServers": {
+    "lang-tools": {
+      "command": "lang-tools-mcp"
+    }
+  }
+}
+```
+
+**Using local build:**
 
 ```json
 {
@@ -91,22 +137,79 @@ Use cleanup_unused_imports_kotlin to clean imports in:
 - src/main/kotlin/com/example/App.kt
 ```
 
+**Example 3: Batch cleanup**
+```
+Clean up all unused imports in my Java project under src/main/java/
+```
+
+## Usage with Other MCP Clients
+
+This server works with any MCP client. The basic usage is:
+
+```bash
+# Run the server
+node /path/to/lang-tools-mcp/build/index.js
+
+# Or via npx
+npx -y git+https://github.com/sickfar/lang-tools-mcp.git
+```
+
+The server communicates via stdio and responds to MCP protocol messages.
+
 ## Development
 
-### Build
+### Prerequisites
+
+- Node.js 20 or higher
+- npm 9 or higher
+
+### Setup
+
 ```bash
+git clone https://github.com/sickfar/lang-tools-mcp.git
+cd lang-tools-mcp
+npm install
+```
+
+### Build
+
+```bash
+# Production build (optimized with esbuild)
 npm run build
+
+# Development build (TSC, preserves types)
+npm run build:dev
+
+# Type checking only
+npm run typecheck
+```
+
+### Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
 ```
 
 ### Watch Mode
+
 ```bash
 npm run watch
 ```
 
 ### Testing with MCP Inspector
+
 ```bash
 npm run inspector
 ```
+
+This opens the MCP Inspector UI for testing the server interactively.
 
 ## How It Works
 
@@ -158,6 +261,41 @@ Example error response:
 }
 ```
 
+## Architecture
+
+```
+lang-tools-mcp/
+├── src/
+│   ├── index.ts           # MCP server implementation
+│   └── importCleaner.ts   # Core import cleanup logic
+├── __tests__/
+│   ├── java.test.ts       # Java import cleanup tests
+│   ├── kotlin.test.ts     # Kotlin import cleanup tests
+│   └── fixtures/          # Test fixtures
+├── build/                 # Compiled output (generated)
+└── package.json
+```
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass (`npm test`)
+5. Submit a pull request
+
 ## License
 
 MIT
+
+## Changelog
+
+### v0.1.0 (2026-01-11)
+- Initial release
+- Support for cleaning unused Java imports
+- Support for cleaning unused Kotlin imports
+- Tree-sitter based AST parsing
+- Comprehensive test suite (27 tests)
+- esbuild optimization for fast builds

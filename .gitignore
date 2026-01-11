@@ -39,6 +39,7 @@ build/Release
 
 # Build output
 build/
+*.map
 
 # Test temp files
 __tests__/temp/
