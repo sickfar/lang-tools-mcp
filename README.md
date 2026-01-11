@@ -269,18 +269,6 @@ npm run test:watch
 npm run test:coverage
 ```
 
-### Watch Mode
-
-```bash
-npm run watch
-```
-
-### Testing with MCP Inspector
-
-```bash
-npm run inspector
-```
-
 This opens the MCP Inspector UI for testing the server interactively.
 
 ## How It Works
@@ -333,21 +321,6 @@ Example error response:
 }
 ```
 
-## Architecture
-
-```
-lang-tools-mcp/
-├── src/
-│   ├── index.ts           # MCP server implementation
-│   └── importCleaner.ts   # Core import cleanup logic
-├── __tests__/
-│   ├── java.test.ts       # Java import cleanup tests
-│   ├── kotlin.test.ts     # Kotlin import cleanup tests
-│   └── fixtures/          # Test fixtures
-├── build/                 # Compiled output (generated)
-└── package.json
-```
-
 ## Contributing
 
 Contributions are welcome! Please:
@@ -361,13 +334,3 @@ Contributions are welcome! Please:
 ## License
 
 MIT
-
-## Changelog
-
-### v0.1.0 (2026-01-11)
-- Initial release
-- Support for cleaning unused Java imports
-- Support for cleaning unused Kotlin imports
-- Tree-sitter based AST parsing
-- Comprehensive test suite (27 tests)
-- esbuild optimization for fast builds
