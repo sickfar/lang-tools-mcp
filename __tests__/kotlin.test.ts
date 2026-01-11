@@ -292,6 +292,70 @@ class Test {
     });
   });
 
+  describe('Edge cases', () => {
+    it('should preserve imports used in DSL-style function calls', () => {
+      const code = `package com.example
+
+import org.kodein.di.DI
+import org.kodein.di.bindSingleton
+
+val appModule = DI.Module("app") {
+    bindSingleton { ApiConfig }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIds = extractUsedIdentifiers(tree, code, 'kotlin');
+      const cleaned = removeUnusedImports(code, imports, usedIds);
+
+      // Both imports should be kept
+      expect(cleaned).toContain('import org.kodein.di.DI');
+      expect(cleaned).toContain('import org.kodein.di.bindSingleton');
+    });
+
+    it('should preserve comments after imports', () => {
+      const code = `package com.example
+
+import java.util.ArrayList
+
+/**
+ * Main class documentation
+ */
+class Test {
+    private val items = ArrayList<String>()
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIds = extractUsedIdentifiers(tree, code, 'kotlin');
+      const cleaned = removeUnusedImports(code, imports, usedIds);
+
+      // Import should be kept
+      expect(cleaned).toContain('import java.util.ArrayList');
+      // Comment should be preserved
+      expect(cleaned).toContain('/**\n * Main class documentation\n */');
+    });
+
+    it('should not include comments in import text', () => {
+      const code = `package com.example
+
+import java.util.ArrayList
+
+/**
+ * Some comment
+ */
+class Test {
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+
+      // Import text should not include the comment
+      expect(imports[0].text).toBe('import java.util.ArrayList');
+      expect(imports[0].text).not.toContain('/**');
+    });
+  });
+
   describe('Integration tests with fixtures', () => {
     it('should clean up UnusedImports.kt fixture', () => {
       const fixturePath = path.join(process.cwd(), '__tests__', 'fixtures', 'kotlin', 'UnusedImports.kt');

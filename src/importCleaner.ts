@@ -92,7 +92,18 @@ export function extractKotlinImports(tree: Parser.Tree, sourceCode: string): Imp
   const importHeaders = rootNode.descendantsOfType('import_header');
 
   for (const importNode of importHeaders) {
-    const importText = sourceCode.substring(importNode.startIndex, importNode.endIndex);
+    // Tree-sitter's Kotlin parser sometimes includes trailing content (comments, whitespace)
+    // in the import_header node. We need to extract only the actual import statement.
+    // Find the first newline after the import starts to get the actual import text.
+    let fullText = sourceCode.substring(importNode.startIndex, importNode.endIndex);
+    let importText = fullText;
+    let actualEndByte = importNode.endIndex;
+
+    const firstNewline = fullText.indexOf('\n');
+    if (firstNewline !== -1) {
+      importText = fullText.substring(0, firstNewline);
+      actualEndByte = importNode.startIndex + firstNewline;
+    }
 
     // Check if it's a wildcard import
     const isWildcard = importText.includes(".*");
@@ -104,7 +115,7 @@ export function extractKotlinImports(tree: Parser.Tree, sourceCode: string): Imp
       imports.push({
         text: importText,
         startByte: importNode.startIndex,
-        endByte: importNode.endIndex,
+        endByte: actualEndByte,
         symbols: [],
         isWildcard: true,
         isStatic: false,
@@ -128,7 +139,7 @@ export function extractKotlinImports(tree: Parser.Tree, sourceCode: string): Imp
       imports.push({
         text: importText,
         startByte: importNode.startIndex,
-        endByte: importNode.endIndex,
+        endByte: actualEndByte,
         symbols,
         isWildcard: false,
         isStatic: false,
