@@ -202,17 +202,20 @@ public class Test {
 
   describe('cleanupJavaFile', () => {
     const testDir = path.join(process.cwd(), '__tests__', 'temp');
-    const testFile = path.join(testDir, 'Test.java');
+    let testFile: string;
 
     beforeEach(() => {
       if (!fs.existsSync(testDir)) {
         fs.mkdirSync(testDir, { recursive: true });
       }
+      // Use unique filename for each test to avoid conflicts
+      testFile = path.join(testDir, `Test-${Date.now()}-${Math.random().toString(36).slice(2)}.java`);
     });
 
     afterEach(() => {
-      if (fs.existsSync(testDir)) {
-        fs.rmSync(testDir, { recursive: true, force: true });
+      // Only delete the specific test file, not the entire directory
+      if (testFile && fs.existsSync(testFile)) {
+        fs.unlinkSync(testFile);
       }
     });
 
