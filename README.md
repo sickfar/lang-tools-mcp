@@ -142,6 +142,78 @@ Use cleanup_unused_imports_kotlin to clean imports in:
 Clean up all unused imports in my Java project under src/main/java/
 ```
 
+## Installation with Claude Code CLI
+
+If you're using Claude Code (CLI), you can add this MCP server using the `claude mcp add` command:
+
+### Quick Installation
+
+```bash
+claude mcp add lang-tools --scope user -- npx -y git+https://github.com/sickfar/lang-tools-mcp.git
+```
+
+This command:
+- Registers the server as "lang-tools"
+- Makes it available across all projects (`--scope user`)
+- Uses npx to automatically download and run the latest version
+- Stores configuration in `~/.claude.json`
+
+### Installation Options
+
+**Option 1: Direct Installation (Recommended)**
+```bash
+claude mcp add lang-tools --scope user -- npx -y git+https://github.com/sickfar/lang-tools-mcp.git
+```
+
+**Option 2: Local Development Setup**
+```bash
+# Clone and build locally
+git clone https://github.com/sickfar/lang-tools-mcp.git
+cd lang-tools-mcp
+npm install
+npm run build
+
+# Add to Claude Code
+claude mcp add lang-tools --scope user -- node build/index.js
+```
+
+**Option 3: Project-Specific Installation**
+```bash
+# Add only for current project (stored in .claude/mcp.json)
+claude mcp add lang-tools --scope local -- npx -y git+https://github.com/sickfar/lang-tools-mcp.git
+```
+
+### Verification
+
+After installation, verify the server is registered:
+
+```bash
+# List all configured MCP servers
+claude mcp list
+
+# Get details of the lang-tools server
+claude mcp get lang-tools
+
+# Test the server connection
+claude mcp test lang-tools
+```
+
+### Configuration Scopes
+
+The `--scope` flag determines where the configuration is stored:
+
+- **`--scope user`**: Available across all projects (`~/.claude.json`)
+- **`--scope project`**: Available for the current project (`.mcp.json` in project root)
+- **`--scope local`** (default): Project-local only (`.claude/mcp.json`)
+
+### Uninstalling
+
+To remove the server:
+
+```bash
+claude mcp remove lang-tools
+```
+
 ## Usage with Other MCP Clients
 
 This server works with any MCP client. The basic usage is:
