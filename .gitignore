@@ -40,6 +40,9 @@ build/Release
 # Build output
 build/
 
+# Test temp files
+__tests__/temp/
+
 # Dependency directories
 node_modules/
 jspm_packages/
