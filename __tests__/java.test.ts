@@ -280,8 +280,8 @@ public class Test {
       const fixturePath = path.join(process.cwd(), '__tests__', 'fixtures', 'java', 'UnusedImports.java');
       const originalCode = fs.readFileSync(fixturePath, 'utf-8');
 
-      // Create a temp copy
-      const tempPath = path.join(process.cwd(), '__tests__', 'temp', 'UnusedImportsTest.java');
+      // Create a temp copy with unique name to avoid parallel test conflicts
+      const tempPath = path.join(process.cwd(), '__tests__', 'temp', `UnusedImportsTest-${Date.now()}.java`);
       if (!fs.existsSync(path.dirname(tempPath))) {
         fs.mkdirSync(path.dirname(tempPath), { recursive: true });
       }
@@ -300,7 +300,9 @@ public class Test {
       expect(cleaned).not.toContain('import java.io.IOException');
 
       // Cleanup
-      fs.rmSync(path.dirname(tempPath), { recursive: true, force: true });
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+      }
     });
   });
 });

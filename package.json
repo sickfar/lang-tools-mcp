@@ -11,7 +11,7 @@
     "build"
   ],
   "scripts": {
-    "build": "npm run typecheck && esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=build/index.js --external:tree-sitter --external:tree-sitter-java --external:tree-sitter-kotlin --external:@modelcontextprotocol/sdk --sourcemap && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "build": "npm run typecheck && esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=build/index.js --external:tree-sitter --external:tree-sitter-java --external:tree-sitter-kotlin --external:@modelcontextprotocol/sdk --sourcemap && chmod +x build/index.js",
     "build:dev": "tsc",
     "typecheck": "tsc --noEmit",
     "prepare": "npm run build",
