@@ -51,38 +51,37 @@ Cleans up unused imports in Kotlin files using tree-sitter parsing.
 
 ## Installation
 
-### Option 1: Install from GitHub (Recommended)
-
-**Using npx (recommended for Claude Desktop):**
-
-No installation needed! The server is automatically downloaded and cached when first used.
-
-**Using npm global install:**
+### Claude Code (Recommended)
 
 ```bash
-npm install -g git+https://github.com/sickfar/lang-tools-mcp.git
+claude mcp add lang-tools --scope user -- npx -y git+https://github.com/sickfar/lang-tools-mcp.git
 ```
 
-### Option 2: Clone and Build Locally
+Verify installation:
+```bash
+claude mcp list
+```
 
+<details>
+<summary>Advanced options</summary>
+
+**Local development:**
 ```bash
 git clone https://github.com/sickfar/lang-tools-mcp.git
 cd lang-tools-mcp
-npm install
-npm run build
+npm install && npm run build
+claude mcp add lang-tools --scope user -- node build/index.js
 ```
 
-## Usage with Claude Desktop
+**Uninstall:**
+```bash
+claude mcp remove lang-tools
+```
+</details>
 
-### Configuration
+### Claude Desktop
 
-Add to your Claude Desktop configuration file:
-
-- **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-**Using npx (recommended):**
+Add to your configuration file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
@@ -95,124 +94,17 @@ Add to your Claude Desktop configuration file:
 }
 ```
 
-**Using global installation:**
+## Usage
 
-```json
-{
-  "mcpServers": {
-    "lang-tools": {
-      "command": "lang-tools-mcp"
-    }
-  }
-}
+Ask Claude to clean up imports:
+
+```
+Clean up unused imports in src/main/java/com/example/Main.java
 ```
 
-**Using local build:**
-
-```json
-{
-  "mcpServers": {
-    "lang-tools": {
-      "command": "node",
-      "args": ["/absolute/path/to/lang-tools-mcp/build/index.js"]
-    }
-  }
-}
-```
-
-### Using the Tools
-
-Once configured, you can use the tools in Claude Desktop:
-
-**Example 1: Clean up Java imports**
-```
-Please use the cleanup_unused_imports_java tool to clean up imports in these files:
-- src/main/java/com/example/Main.java
-- src/main/java/com/example/Utils.java
-```
-
-**Example 2: Clean up Kotlin imports**
-```
-Use cleanup_unused_imports_kotlin to clean imports in:
-- src/main/kotlin/com/example/App.kt
-```
-
-**Example 3: Batch cleanup**
-```
-Clean up all unused imports in my Java project under src/main/java/
-```
-
-## Installation with Claude Code CLI
-
-If you're using Claude Code (CLI), you can add this MCP server using the `claude mcp add` command:
-
-### Quick Installation
-
-```bash
-claude mcp add lang-tools --scope user -- npx -y git+https://github.com/sickfar/lang-tools-mcp.git
-```
-
-This command:
-- Registers the server as "lang-tools"
-- Makes it available across all projects (`--scope user`)
-- Uses npx to automatically download and run the latest version
-- Stores configuration in `~/.claude.json`
-
-### Installation Options
-
-**Option 1: Direct Installation (Recommended)**
-```bash
-claude mcp add lang-tools --scope user -- npx -y git+https://github.com/sickfar/lang-tools-mcp.git
-```
-
-**Option 2: Local Development Setup**
-```bash
-# Clone and build locally
-git clone https://github.com/sickfar/lang-tools-mcp.git
-cd lang-tools-mcp
-npm install
-npm run build
-
-# Add to Claude Code
-claude mcp add lang-tools --scope user -- node build/index.js
-```
-
-**Option 3: Project-Specific Installation**
-```bash
-# Add only for current project (stored in .claude/mcp.json)
-claude mcp add lang-tools --scope local -- npx -y git+https://github.com/sickfar/lang-tools-mcp.git
-```
-
-### Verification
-
-After installation, verify the server is registered:
-
-```bash
-# List all configured MCP servers
-claude mcp list
-
-# Get details of the lang-tools server
-claude mcp get lang-tools
-
-# Test the server connection
-claude mcp test lang-tools
-```
-
-### Configuration Scopes
-
-The `--scope` flag determines where the configuration is stored:
-
-- **`--scope user`**: Available across all projects (`~/.claude.json`)
-- **`--scope project`**: Available for the current project (`.mcp.json` in project root)
-- **`--scope local`** (default): Project-local only (`.claude/mcp.json`)
-
-### Uninstalling
-
-To remove the server:
-
-```bash
-claude mcp remove lang-tools
-```
+The server provides two tools:
+- `cleanup_unused_imports_java` - Clean Java imports
+- `cleanup_unused_imports_kotlin` - Clean Kotlin imports
 
 ## Usage with Other MCP Clients
 
