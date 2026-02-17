@@ -11,10 +11,9 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import * as path from "path";
-import * as fs from "fs";
 import { cleanupJavaFile, cleanupKotlinFile } from "./importCleaner.js";
 import { detectDeadCodeInFile } from "./deadCodeDetector.js";
+import { resolveFilePaths } from "./resolveFilePaths.js";
 
 /**
  * Create the MCP server
@@ -43,15 +42,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            files: {
+            paths: {
               type: "array",
               items: {
                 type: "string"
               },
-              description: "Array of Java file paths to clean up"
+              description: "Array of Java file paths or directories to clean up. Directories are scanned recursively for .java files."
             }
           },
-          required: ["files"]
+          required: ["paths"]
         }
       },
       {
@@ -60,15 +59,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            files: {
+            paths: {
               type: "array",
               items: {
                 type: "string"
               },
-              description: "Array of Kotlin file paths to clean up"
+              description: "Array of Kotlin file paths or directories to clean up. Directories are scanned recursively for .kt files."
             }
           },
-          required: ["files"]
+          required: ["paths"]
         }
       },
       {
@@ -77,15 +76,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            files: {
+            paths: {
               type: "array",
               items: {
                 type: "string"
               },
-              description: "Array of Java file paths to analyze"
+              description: "Array of Java file paths or directories to analyze. Directories are scanned recursively for .java files."
             }
           },
-          required: ["files"]
+          required: ["paths"]
         }
       },
       {
@@ -94,15 +93,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            files: {
+            paths: {
               type: "array",
               items: {
                 type: "string"
               },
-              description: "Array of Kotlin file paths to analyze"
+              description: "Array of Kotlin file paths or directories to analyze. Directories are scanned recursively for .kt files."
             }
           },
-          required: ["files"]
+          required: ["paths"]
         }
       }
     ]
@@ -115,34 +114,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   switch (request.params.name) {
     case "cleanup_unused_imports_java": {
-      const files = request.params.arguments?.files as string[];
+      const paths = request.params.arguments?.paths as string[];
 
-      if (!files || !Array.isArray(files)) {
+      if (!paths || !Array.isArray(paths)) {
         return {
           content: [{
             type: "text",
-            text: JSON.stringify({ status: "NOK", error: "Invalid files parameter" })
+            text: JSON.stringify({ status: "NOK", error: "Invalid paths parameter" })
           }]
         };
       }
 
+      const { resolved, errors: resolveErrors } = resolveFilePaths(paths, ".java");
       let processedCount = 0;
-      const errors: string[] = [];
+      const errors: string[] = resolveErrors.map(e => e.message);
 
-      for (const file of files) {
-        // Resolve to absolute path if needed
-        const absolutePath = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);
-
-        if (!fs.existsSync(absolutePath)) {
-          errors.push(`File not found: ${file}`);
-          continue;
-        }
-
+      for (const absolutePath of resolved) {
         const success = cleanupJavaFile(absolutePath);
         if (success) {
           processedCount++;
         } else {
-          errors.push(`Failed to process: ${file}`);
+          errors.push(`Failed to process: ${absolutePath}`);
         }
       }
 
@@ -161,34 +153,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "cleanup_unused_imports_kotlin": {
-      const files = request.params.arguments?.files as string[];
+      const paths = request.params.arguments?.paths as string[];
 
-      if (!files || !Array.isArray(files)) {
+      if (!paths || !Array.isArray(paths)) {
         return {
           content: [{
             type: "text",
-            text: JSON.stringify({ status: "NOK", error: "Invalid files parameter" })
+            text: JSON.stringify({ status: "NOK", error: "Invalid paths parameter" })
           }]
         };
       }
 
+      const { resolved, errors: resolveErrors } = resolveFilePaths(paths, ".kt");
       let processedCount = 0;
-      const errors: string[] = [];
+      const errors: string[] = resolveErrors.map(e => e.message);
 
-      for (const file of files) {
-        // Resolve to absolute path if needed
-        const absolutePath = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);
-
-        if (!fs.existsSync(absolutePath)) {
-          errors.push(`File not found: ${file}`);
-          continue;
-        }
-
+      for (const absolutePath of resolved) {
         const success = cleanupKotlinFile(absolutePath);
         if (success) {
           processedCount++;
         } else {
-          errors.push(`Failed to process: ${file}`);
+          errors.push(`Failed to process: ${absolutePath}`);
         }
       }
 
@@ -209,28 +194,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "detect_dead_code_java":
     case "detect_dead_code_kotlin": {
       const language = request.params.name === "detect_dead_code_java" ? "java" : "kotlin";
-      const files = request.params.arguments?.files as string[];
+      const extension = language === "java" ? ".java" : ".kt";
+      const paths = request.params.arguments?.paths as string[];
 
-      if (!files || !Array.isArray(files)) {
+      if (!paths || !Array.isArray(paths)) {
         return {
           content: [{
             type: "text",
-            text: JSON.stringify({ status: "NOK", error: "Invalid files parameter" })
+            text: JSON.stringify({ status: "NOK", error: "Invalid paths parameter" })
           }]
         };
       }
 
+      const { resolved, errors: resolveErrors } = resolveFilePaths(paths, extension);
       const fileResults = [];
       let totalFindings = 0;
 
-      for (const file of files) {
-        const absolutePath = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);
+      for (const resolveError of resolveErrors) {
+        fileResults.push({ file: resolveError.path, findings: [], error: resolveError.message });
+      }
 
-        if (!fs.existsSync(absolutePath)) {
-          fileResults.push({ file, findings: [], error: `File not found: ${file}` });
-          continue;
-        }
-
+      for (const absolutePath of resolved) {
         const result = detectDeadCodeInFile(absolutePath, language);
         totalFindings += result.findings.length;
         fileResults.push(result);
@@ -238,7 +222,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       const response = {
         status: "OK",
-        filesProcessed: fileResults.filter(r => !r.error).length,
+        filesProcessed: resolved.length,
         totalFindings,
         files: fileResults,
       };

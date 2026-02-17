@@ -12,7 +12,7 @@ This MCP server provides four tools:
 Cleans up unused imports in Java files using tree-sitter parsing.
 
 **Input:**
-- `files`: Array of Java file paths (absolute or relative)
+- `paths`: Array of Java file paths or directories (absolute or relative). Directories are scanned recursively for `.java` files.
 
 **Output:**
 ```json
@@ -33,7 +33,7 @@ Cleans up unused imports in Java files using tree-sitter parsing.
 Cleans up unused imports in Kotlin files using tree-sitter parsing.
 
 **Input:**
-- `files`: Array of Kotlin file paths (absolute or relative)
+- `paths`: Array of Kotlin file paths or directories (absolute or relative). Directories are scanned recursively for `.kt` files.
 
 **Output:**
 ```json
@@ -53,7 +53,7 @@ Cleans up unused imports in Kotlin files using tree-sitter parsing.
 Detects dead code in Java files using tree-sitter parsing. Detection only — does not modify files.
 
 **Input:**
-- `files`: Array of Java file paths (absolute or relative)
+- `paths`: Array of Java file paths or directories (absolute or relative). Directories are scanned recursively for `.java` files.
 
 **Output:**
 ```json
@@ -88,7 +88,7 @@ Detects dead code in Java files using tree-sitter parsing. Detection only — do
 Detects dead code in Kotlin files using tree-sitter parsing. Detection only — does not modify files.
 
 **Input:**
-- `files`: Array of Kotlin file paths (absolute or relative)
+- `paths`: Array of Kotlin file paths or directories (absolute or relative). Directories are scanned recursively for `.kt` files.
 
 **Detects:**
 - Unused function parameters (skips overrides, annotated params, primary constructors)
@@ -144,10 +144,10 @@ Add to your configuration file (`~/Library/Application Support/Claude/claude_des
 
 ## Usage
 
-Ask Claude to clean up imports:
+Ask Claude to clean up imports in a file or directory:
 
 ```
-Clean up unused imports in src/main/java/com/example/Main.java
+Clean up unused imports in src/main/java/com/example/
 ```
 
 The server provides four tools:
@@ -242,7 +242,7 @@ The server uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser
 
 If errors occur during processing:
 - Files with syntax errors are skipped
-- Non-existent files are reported in the error list
+- Non-existent files or directories are reported in the error list
 - Processing continues for remaining files
 - Status returns "NOK" if any errors occurred
 
@@ -252,7 +252,7 @@ Example error response:
   "status": "NOK",
   "filesProcessed": 2,
   "errors": [
-    "File not found: missing.java",
+    "Path not found: missing.java",
     "Failed to process: broken.java"
   ]
 }

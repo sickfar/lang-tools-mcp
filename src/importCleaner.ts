@@ -245,7 +245,7 @@ export function cleanupJavaFile(filePath: string): boolean {
     const sourceCode = fs.readFileSync(filePath, 'utf-8');
     const tree = javaParser.parse(sourceCode);
 
-    if (tree.rootNode.hasError) {
+    if (!tree.rootNode || tree.rootNode.hasError) {
       console.error(`Syntax error in file: ${filePath}`);
       return false;
     }
@@ -274,7 +274,7 @@ export function cleanupKotlinFile(filePath: string): boolean {
     const sourceCode = fs.readFileSync(filePath, 'utf-8');
     const tree = kotlinParser.parse(sourceCode);
 
-    if (tree.rootNode.hasError) {
+    if (!tree.rootNode || tree.rootNode.hasError) {
       console.error(`Syntax error in file: ${filePath}`);
       return false;
     }

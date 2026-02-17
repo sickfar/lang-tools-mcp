@@ -5,6 +5,7 @@ MCP server providing Java/Kotlin static analysis tools using tree-sitter AST par
 ## Project Structure
 
 - `src/index.ts` — MCP server entry point, tool registration and request handling
+- `src/resolveFilePaths.ts` — Resolves file/directory paths into individual file paths with recursive directory scanning
 - `src/deadCodeDetector.ts` — Dead code detection logic (unused params, locals, fields, private methods)
 - `__tests__/` — Jest tests (ESM mode via ts-jest)
 - `__tests__/fixtures/` — Java and Kotlin fixture files for tests
