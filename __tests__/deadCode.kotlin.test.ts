@@ -659,4 +659,168 @@ class Svc(name: String) {
       expect(names).not.toContain('logger');
     });
   });
+
+  describe('companion object cross-scope access (false positive fixes)', () => {
+    it('should NOT flag companion constant used in enclosing class', () => {
+      const code = `
+class Analytics {
+    private val trendMonths = TREND_MONTHS
+
+    companion object {
+        private const val TREND_MONTHS = 3
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+
+      // TREND_MONTHS is used in enclosing class - should NOT be flagged
+      expect(findings.map(f => f.name)).not.toContain('TREND_MONTHS');
+    });
+
+    it('should NOT flag companion method called from enclosing class', () => {
+      const code = `
+class Factory {
+    fun build() = create()
+
+    companion object {
+        private fun create(): Factory = Factory()
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      // create() is called from enclosing class - should NOT be flagged
+      expect(findings.map(f => f.name)).not.toContain('create');
+    });
+
+    it('should still flag truly unused companion members', () => {
+      const code = `
+class Service {
+    companion object {
+        private const val UNUSED_CONSTANT = 10
+        private fun unusedHelper() {}
+        fun publicFactory() {}
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const fieldFindings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+      const methodFindings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      // Unused members SHOULD be flagged
+      expect(fieldFindings.map(f => f.name)).toContain('UNUSED_CONSTANT');
+      expect(methodFindings.map(f => f.name)).toContain('unusedHelper');
+      // Public methods should NOT be flagged (not private)
+      expect(methodFindings.map(f => f.name)).not.toContain('publicFactory');
+    });
+
+    it('should maintain nested class scope boundaries', () => {
+      const code = `
+class Outer {
+    private val outerField = "test"
+
+    class Inner {
+        private val innerField = "inner"
+        fun useInner() {
+            println(innerField)
+        }
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+
+      // outerField is only declared, never used - SHOULD be flagged
+      expect(findings.map(f => f.name)).toContain('outerField');
+      // innerField is used within Inner - should NOT be flagged
+      expect(findings.map(f => f.name)).not.toContain('innerField');
+    });
+  });
+
+  describe('function type parameters (false positive fixes)', () => {
+    it('should ignore named parameters in function type signatures', () => {
+      const code = `
+class Aggregator {
+    fun aggregate(
+        aggregations: Map<String, (classIds: List<String>, date: String) -> Int>
+    ) {
+        println(aggregations)
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedParameters(tree, code, KOTLIN_CONFIG);
+
+      // classIds and date are NOT method parameters, they're type annotation parameters
+      // They should be IGNORED, not flagged as unused
+      expect(findings.map(f => f.name)).not.toContain('classIds');
+      expect(findings.map(f => f.name)).not.toContain('date');
+      // aggregations is a real parameter and is used - should NOT be flagged
+      expect(findings.map(f => f.name)).not.toContain('aggregations');
+    });
+
+    it('should still flag actual unused parameters', () => {
+      const code = `
+class Service {
+    fun process(
+        mapper: (String) -> Int,
+        unusedFlag: Boolean
+    ) {
+        val result = mapper("test")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedParameters(tree, code, KOTLIN_CONFIG);
+
+      // mapper is used - should NOT be flagged
+      expect(findings.map(f => f.name)).not.toContain('mapper');
+      // unusedFlag is a real unused parameter - SHOULD be flagged
+      expect(findings.map(f => f.name)).toContain('unusedFlag');
+    });
+
+    it('should handle nested function types', () => {
+      const code = `
+class Complex {
+    fun transform(
+        transformer: (List<String>) -> (name: String, count: Int) -> String
+    ) {
+        println(transformer)
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedParameters(tree, code, KOTLIN_CONFIG);
+
+      // name and count are in nested function type - should be IGNORED
+      expect(findings.map(f => f.name)).not.toContain('name');
+      expect(findings.map(f => f.name)).not.toContain('count');
+      // transformer is used - should NOT be flagged
+      expect(findings.map(f => f.name)).not.toContain('transformer');
+    });
+
+    it('should distinguish formal params from function type params with same name', () => {
+      const code = `
+class Tricky {
+    fun process(
+        date: String,
+        mapper: (date: String) -> String
+    ) {
+        println(mapper)
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedParameters(tree, code, KOTLIN_CONFIG);
+
+      // The formal parameter 'date' is unused - SHOULD be flagged
+      expect(findings.map(f => f.name)).toContain('date');
+      // mapper is used - should NOT be flagged
+      expect(findings.map(f => f.name)).not.toContain('mapper');
+      // Should only flag 'date' once (the formal parameter, not the type annotation one)
+      expect(findings.filter(f => f.name === 'date')).toHaveLength(1);
+    });
+  });
 });

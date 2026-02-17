@@ -209,8 +209,33 @@ function isInSameClassScope(idNode: Parser.SyntaxNode, targetClassBody: Parser.S
   let current = idNode.parent;
   while (current) {
     if (current === targetClassBody) return true;
-    // If we hit another class body before reaching target, it's a different scope
-    if (current.type === config.classBodyType && current !== targetClassBody) return false;
+    // If we hit another class body before reaching target, check if it's a companion object
+    if (current.type === config.classBodyType && current !== targetClassBody) {
+      // For Kotlin: check bidirectional companion object transparency
+      if (config.language === 'kotlin') {
+        // Case 1: current class_body belongs to a companion_object inside targetClassBody
+        // (identifier in companion, target is companion)
+        if (current.parent?.type === 'companion_object') {
+          const companionNode = current.parent;
+          if (companionNode.parent === targetClassBody) {
+            // Continue walking up - companion boundary is transparent
+            current = current.parent;
+            continue;
+          }
+        }
+        // Case 2: current class_body is a parent class, and target belongs to a companion inside it
+        // (identifier in parent class, target is companion)
+        if (targetClassBody.parent?.type === 'companion_object') {
+          const targetCompanionNode = targetClassBody.parent;
+          if (targetCompanionNode.parent === current) {
+            // Identifier in parent class, target is companion - they share scope
+            return true;
+          }
+        }
+      }
+      // Otherwise, it's a nested class - different scope
+      return false;
+    }
     current = current.parent;
   }
   return false;
@@ -223,14 +248,42 @@ function collectScopedIdentifiers(
   config: LanguageConfig
 ): Array<{ name: string; node: Parser.SyntaxNode }> {
   const allIds: Array<{ name: string; node: Parser.SyntaxNode }> = [];
-  for (const idType of config.identifierTypes) {
-    for (const idNode of classBody.descendantsOfType(idType)) {
-      if (isInSameClassScope(idNode, classBody, config)) {
-        allIds.push({ name: getSourceText(idNode, sourceCode), node: idNode });
+
+  // For Kotlin companion objects, also include identifiers from the parent class
+  // since companion members are accessible from the enclosing class
+  const bodiesToScan: Parser.SyntaxNode[] = [classBody];
+  if (config.language === 'kotlin' && classBody.parent?.type === 'companion_object') {
+    const companionNode = classBody.parent;
+    const parentClassBody = companionNode.parent; // parent class's class_body
+    if (parentClassBody && parentClassBody.type === config.classBodyType) {
+      bodiesToScan.push(parentClassBody);
+    }
+  }
+
+  for (const bodyToScan of bodiesToScan) {
+    for (const idType of config.identifierTypes) {
+      for (const idNode of bodyToScan.descendantsOfType(idType)) {
+        if (isInSameClassScope(idNode, classBody, config)) {
+          allIds.push({ name: getSourceText(idNode, sourceCode), node: idNode });
+        }
       }
     }
   }
   return allIds;
+}
+
+/** Check if a parameter node is inside a function_type (type annotation) rather than a formal parameter list */
+function isInsideFunctionType(paramNode: Parser.SyntaxNode): boolean {
+  let current = paramNode.parent;
+  while (current) {
+    if (current.type === 'function_type') return true;
+    // Stop at formal parameter container or method declaration
+    if (current.type === 'function_value_parameters' || current.type === 'function_declaration') {
+      return false;
+    }
+    current = current.parent;
+  }
+  return false;
 }
 
 // --- Detection Functions ---
@@ -279,6 +332,9 @@ export function detectUnusedParameters(
     }
 
     for (const param of params) {
+      // Skip parameters that are inside function_type nodes (type annotations, not formal params)
+      if (isInsideFunctionType(param)) continue;
+
       // Get parameter name
       const nameNodes = param.descendantsOfType(config.parameterNameNodeType);
       if (nameNodes.length === 0) continue;
@@ -660,29 +716,44 @@ export function detectUnusedPrivateMethods(
     // Collect method invocation names and method reference names, scoped to this class
     const calledNames = new Set<string>();
 
+    // For Kotlin companion objects, also scan the parent class body
+    // since companion members can be called from the enclosing class
+    const bodiesToScan: Parser.SyntaxNode[] = [classBody];
+    if (config.language === 'kotlin' && classBody.parent?.type === 'companion_object') {
+      const companionNode = classBody.parent;
+      const parentClassBody = companionNode.parent; // parent class's class_body
+      if (parentClassBody && parentClassBody.type === config.classBodyType) {
+        bodiesToScan.push(parentClassBody);
+      }
+    }
+
     // Method invocations
-    for (const invType of config.methodInvocationTypes) {
-      for (const inv of classBody.descendantsOfType(invType)) {
-        if (!isInSameClassScope(inv, classBody, config)) continue;
-        if (config.language === 'java') {
-          const nameField = inv.childForFieldName('name');
-          if (nameField) calledNames.add(getSourceText(nameField, sourceCode));
-        } else {
-          const firstChild = inv.namedChild(0);
-          if (firstChild && (firstChild.type === 'simple_identifier')) {
-            calledNames.add(getSourceText(firstChild, sourceCode));
+    for (const bodyToScan of bodiesToScan) {
+      for (const invType of config.methodInvocationTypes) {
+        for (const inv of bodyToScan.descendantsOfType(invType)) {
+          if (!isInSameClassScope(inv, classBody, config)) continue;
+          if (config.language === 'java') {
+            const nameField = inv.childForFieldName('name');
+            if (nameField) calledNames.add(getSourceText(nameField, sourceCode));
+          } else {
+            const firstChild = inv.namedChild(0);
+            if (firstChild && (firstChild.type === 'simple_identifier')) {
+              calledNames.add(getSourceText(firstChild, sourceCode));
+            }
           }
         }
       }
     }
 
     // Method references
-    for (const refType of config.methodReferenceTypes) {
-      for (const ref of classBody.descendantsOfType(refType)) {
-        if (!isInSameClassScope(ref, classBody, config)) continue;
-        const ids = ref.descendantsOfType(config.language === 'java' ? 'identifier' : 'simple_identifier');
-        if (ids.length > 0) {
-          calledNames.add(getSourceText(ids[ids.length - 1], sourceCode));
+    for (const bodyToScan of bodiesToScan) {
+      for (const refType of config.methodReferenceTypes) {
+        for (const ref of bodyToScan.descendantsOfType(refType)) {
+          if (!isInSameClassScope(ref, classBody, config)) continue;
+          const ids = ref.descendantsOfType(config.language === 'java' ? 'identifier' : 'simple_identifier');
+          if (ids.length > 0) {
+            calledNames.add(getSourceText(ids[ids.length - 1], sourceCode));
+          }
         }
       }
     }
