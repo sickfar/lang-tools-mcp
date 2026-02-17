@@ -14,6 +14,7 @@ import {
 import * as path from "path";
 import * as fs from "fs";
 import { cleanupJavaFile, cleanupKotlinFile } from "./importCleaner.js";
+import { detectDeadCodeInFile } from "./deadCodeDetector.js";
 
 /**
  * Create the MCP server
@@ -65,6 +66,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 type: "string"
               },
               description: "Array of Kotlin file paths to clean up"
+            }
+          },
+          required: ["files"]
+        }
+      },
+      {
+        name: "detect_dead_code_java",
+        description: "Detect dead code in Java files. Finds unused parameters, local variables, private fields, and private methods. Detection only — does not modify files.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            files: {
+              type: "array",
+              items: {
+                type: "string"
+              },
+              description: "Array of Java file paths to analyze"
+            }
+          },
+          required: ["files"]
+        }
+      },
+      {
+        name: "detect_dead_code_kotlin",
+        description: "Detect dead code in Kotlin files. Finds unused parameters, local variables, private fields, and private methods. Detection only — does not modify files.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            files: {
+              type: "array",
+              items: {
+                type: "string"
+              },
+              description: "Array of Kotlin file paths to analyze"
             }
           },
           required: ["files"]
@@ -167,6 +202,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [{
           type: "text",
           text: JSON.stringify(result, null, 2)
+        }]
+      };
+    }
+
+    case "detect_dead_code_java":
+    case "detect_dead_code_kotlin": {
+      const language = request.params.name === "detect_dead_code_java" ? "java" : "kotlin";
+      const files = request.params.arguments?.files as string[];
+
+      if (!files || !Array.isArray(files)) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ status: "NOK", error: "Invalid files parameter" })
+          }]
+        };
+      }
+
+      const fileResults = [];
+      let totalFindings = 0;
+
+      for (const file of files) {
+        const absolutePath = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);
+
+        if (!fs.existsSync(absolutePath)) {
+          fileResults.push({ file, findings: [], error: `File not found: ${file}` });
+          continue;
+        }
+
+        const result = detectDeadCodeInFile(absolutePath, language);
+        totalFindings += result.findings.length;
+        fileResults.push(result);
+      }
+
+      const response = {
+        status: "OK",
+        filesProcessed: fileResults.filter(r => !r.error).length,
+        totalFindings,
+        files: fileResults,
+      };
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(response, null, 2)
         }]
       };
     }

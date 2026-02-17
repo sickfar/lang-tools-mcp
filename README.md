@@ -1,12 +1,12 @@
 # lang-tools-mcp
 
-MCP (Model Context Protocol) server that provides tools to automate lint fixes for Java and Kotlin code. Currently supports cleaning up unused imports.
+MCP (Model Context Protocol) server that provides tools to automate lint fixes and static analysis for Java and Kotlin code. Supports cleaning up unused imports and detecting dead code.
 
 [![Tests](https://github.com/sickfar/lang-tools-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/sickfar/lang-tools-mcp/actions/workflows/test.yml)
 
 ## Features
 
-This MCP server provides two tools:
+This MCP server provides four tools:
 
 ### 1. `cleanup_unused_imports_java`
 Cleans up unused imports in Java files using tree-sitter parsing.
@@ -48,6 +48,54 @@ Cleans up unused imports in Kotlin files using tree-sitter parsing.
 - Keeps wildcard imports (`import java.util.*`) for safety
 - Handles import aliases (`import java.util.List as MyList`)
 - Considers annotations as used symbols
+
+### 3. `detect_dead_code_java`
+Detects dead code in Java files using tree-sitter parsing. Detection only — does not modify files.
+
+**Input:**
+- `files`: Array of Java file paths (absolute or relative)
+
+**Output:**
+```json
+{
+  "status": "OK",
+  "filesProcessed": 2,
+  "findings": [
+    {
+      "file": "src/Main.java",
+      "findings": [
+        {
+          "category": "unused-parameter",
+          "name": "unusedParam",
+          "line": 15,
+          "method": "process",
+          "className": "Main"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Detects:**
+- Unused method parameters (skips `main`, overrides, annotated params)
+- Unused local variables
+- Unused private fields (skips serialVersionUID, loggers)
+- Unused private methods (skips annotated methods)
+- Scope-aware: correctly handles inner classes, lambdas, anonymous classes
+
+### 4. `detect_dead_code_kotlin`
+Detects dead code in Kotlin files using tree-sitter parsing. Detection only — does not modify files.
+
+**Input:**
+- `files`: Array of Kotlin file paths (absolute or relative)
+
+**Detects:**
+- Unused function parameters (skips overrides, annotated params, primary constructors)
+- Unused local variables (skips destructuring `_` placeholders)
+- Unused private properties (skips loggers)
+- Unused private functions
+- Scope-aware: correctly handles inner classes, companion objects
 
 ## Installation
 
@@ -102,9 +150,11 @@ Ask Claude to clean up imports:
 Clean up unused imports in src/main/java/com/example/Main.java
 ```
 
-The server provides two tools:
+The server provides four tools:
 - `cleanup_unused_imports_java` - Clean Java imports
 - `cleanup_unused_imports_kotlin` - Clean Kotlin imports
+- `detect_dead_code_java` - Detect dead code in Java files
+- `detect_dead_code_kotlin` - Detect dead code in Kotlin files
 
 ## Usage with Other MCP Clients
 
@@ -165,32 +215,27 @@ This opens the MCP Inspector UI for testing the server interactively.
 
 ## How It Works
 
-The server uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parsers for Java and Kotlin to:
+The server uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parsers for Java and Kotlin to parse source code into an AST and perform analysis.
 
-1. Parse the source code into an abstract syntax tree (AST)
-2. Extract all import declarations
-3. Identify all symbols/identifiers used in the code
-4. Compare imports against used symbols
-5. Remove imports that are not referenced
-6. Write the cleaned code back to the file
+### Import Cleanup
 
-### Import Detection Rules
+1. Extracts all import declarations
+2. Identifies all symbols/identifiers used in the code
+3. Removes imports that are not referenced
+4. Writes the cleaned code back to the file
 
-**Unused imports are removed when:**
-- The imported class/symbol is never referenced in the code
-- The import is not a wildcard import
+### Dead Code Detection
 
-**Imports are kept when:**
-- They are wildcard imports (`.*`)
-- The imported symbol is used anywhere in the code
-- The symbol appears in type annotations
-- The symbol is used in annotations (e.g., `@Override`, `@Test`)
+1. Parses source into AST
+2. Runs four detectors: unused parameters, local variables, private fields, private methods
+3. Uses scope-aware traversal to handle nested classes, companion objects, and lambdas correctly
+4. Returns findings with file, line number, and context (method name, class name)
 
 ### Limitations
 
 - Wildcard imports are always kept (safer approach)
-- JavaDoc references are not considered as usage
-- May not detect usage in some edge cases (e.g., reflection)
+- Dead code detection is single-file only (no cross-file analysis)
+- Overloaded methods with the same name: if any overload is called, all are considered used
 - Files with syntax errors will be skipped
 
 ## Error Handling
