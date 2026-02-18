@@ -196,6 +196,66 @@ export function extractUsedIdentifiers(tree: Parser.Tree, sourceCode: string, la
 }
 
 /**
+ * Detect Kotlin operator function names that are used implicitly through language syntax
+ * rather than explicit identifier calls (e.g. `by` delegation, `for` loops, destructuring,
+ * indexed access, arithmetic operators).
+ */
+export function extractImplicitlyUsedOperators(tree: Parser.Tree, _language: 'kotlin'): Set<string> {
+  const implicit = new Set<string>();
+  const root = tree.rootNode;
+
+  // by delegation → getValue, setValue, provideDelegate
+  if (root.descendantsOfType('property_delegate').length > 0) {
+    implicit.add('getValue');
+    implicit.add('setValue');
+    implicit.add('provideDelegate');
+  }
+
+  // for loop → iterator, hasNext, next
+  if (root.descendantsOfType('for_statement').length > 0) {
+    implicit.add('iterator');
+    implicit.add('hasNext');
+    implicit.add('next');
+  }
+
+  // destructuring → component1, component2, …
+  const destructuring = root.descendantsOfType('multi_variable_declaration');
+  for (const node of destructuring) {
+    const count = node.namedChildren.filter((c: Parser.SyntaxNode) => c.type === 'variable_declaration').length;
+    for (let i = 1; i <= count; i++) {
+      implicit.add(`component${i}`);
+    }
+  }
+
+  // indexed access → get, set
+  if (root.descendantsOfType('indexing_expression').length > 0) {
+    implicit.add('get');
+    implicit.add('set');
+  }
+
+  // arithmetic / comparison operators → operator function names
+  const operatorNodeMap: Record<string, string[]> = {
+    additive_expression: ['plus', 'minus'],
+    multiplicative_expression: ['times', 'div', 'rem'],
+    // prefix_expression covers: -a (unaryMinus), +a (unaryPlus), !a (not), ++a (inc), --a (dec)
+    prefix_expression: ['unaryPlus', 'unaryMinus', 'not', 'inc', 'dec'],
+    // postfix_expression covers: a++ (inc), a-- (dec)
+    postfix_expression: ['inc', 'dec'],
+    range_expression: ['rangeTo'],
+    // check_expression covers: x in y (contains) and x is T (no operator function, harmless)
+    check_expression: ['contains'],
+    comparison_expression: ['compareTo'],
+  };
+  for (const [nodeType, operators] of Object.entries(operatorNodeMap)) {
+    if (root.descendantsOfType(nodeType).length > 0) {
+      for (const op of operators) implicit.add(op);
+    }
+  }
+
+  return implicit;
+}
+
+/**
  * Remove unused imports from source code
  */
 export function removeUnusedImports(sourceCode: string, imports: ImportInfo[], usedIdentifiers: Set<string>): string {
@@ -281,6 +341,8 @@ export function cleanupKotlinFile(filePath: string): boolean {
 
     const imports = extractKotlinImports(tree, sourceCode);
     const usedIdentifiers = extractUsedIdentifiers(tree, sourceCode, 'kotlin');
+    const implicitOperators = extractImplicitlyUsedOperators(tree, 'kotlin');
+    for (const op of implicitOperators) usedIdentifiers.add(op);
     const modifiedCode = removeUnusedImports(sourceCode, imports, usedIdentifiers);
 
     if (modifiedCode !== sourceCode) {

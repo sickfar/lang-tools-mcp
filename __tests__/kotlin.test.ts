@@ -5,6 +5,7 @@ import {
   parseKotlin,
   extractKotlinImports,
   extractUsedIdentifiers,
+  extractImplicitlyUsedOperators,
   removeUnusedImports,
   cleanupKotlinFile
 } from '../src/importCleaner.js';
@@ -411,6 +412,427 @@ class Test {
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
       }
+    });
+  });
+
+  describe('Operator extension function imports', () => {
+    it('should preserve getValue and setValue imports used via by delegation', () => {
+      const code = `package com.example
+
+import com.example.delegates.getValue
+import com.example.delegates.setValue
+import java.util.HashMap
+
+class Test {
+    var myState: String by SomeDelegate()
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.delegates.getValue');
+      expect(cleaned).toContain('import com.example.delegates.setValue');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve provideDelegate import used via by delegation', () => {
+      const code = `package com.example
+
+import com.example.delegates.getValue
+import com.example.delegates.provideDelegate
+
+class Test {
+    val myProp: String by SomeDelegate()
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.delegates.getValue');
+      expect(cleaned).toContain('import com.example.delegates.provideDelegate');
+    });
+
+    it('should preserve iterator import used via for loop', () => {
+      const code = `package com.example
+
+import com.example.collections.iterator
+import com.example.collections.hasNext
+import com.example.collections.next
+import java.util.HashMap
+
+class Test {
+    fun run(items: MyCollection) {
+        for (item in items) {
+            println(item)
+        }
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.collections.iterator');
+      expect(cleaned).toContain('import com.example.collections.hasNext');
+      expect(cleaned).toContain('import com.example.collections.next');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve component1 and component2 imports used via destructuring', () => {
+      const code = `package com.example
+
+import com.example.pairs.component1
+import com.example.pairs.component2
+import java.util.HashMap
+
+class Test {
+    fun run(pair: MyPair) {
+        val (first, second) = pair
+        println("${'$'}first ${'$'}second")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.pairs.component1');
+      expect(cleaned).toContain('import com.example.pairs.component2');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve get and set imports used via indexed access', () => {
+      const code = `package com.example
+
+import com.example.maps.get
+import com.example.maps.set
+import java.util.HashMap
+
+class Test {
+    fun run(map: MyMap) {
+        val value = map["key"]
+        map["key"] = 42
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.maps.get');
+      expect(cleaned).toContain('import com.example.maps.set');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve plus and minus imports used via arithmetic operators', () => {
+      const code = `package com.example
+
+import com.example.math.plus
+import com.example.math.minus
+import java.util.HashMap
+
+class Test {
+    fun run(a: MyNum, b: MyNum) {
+        val c = a + b
+        val d = a - b
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.math.plus');
+      expect(cleaned).toContain('import com.example.math.minus');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve times, div, rem imports used via multiplication operators', () => {
+      const code = `package com.example
+
+import com.example.math.times
+import com.example.math.div
+import com.example.math.rem
+import java.util.HashMap
+
+class Test {
+    fun run(a: MyNum, b: MyNum) {
+        val c = a * b
+        val d = a / b
+        val e = a % b
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.math.times');
+      expect(cleaned).toContain('import com.example.math.div');
+      expect(cleaned).toContain('import com.example.math.rem');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve contains import used via in operator', () => {
+      const code = `package com.example
+
+import com.example.collections.contains
+import java.util.HashMap
+
+class Test {
+    fun run(col: MyCollection, item: String): Boolean {
+        return item in col
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.collections.contains');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve compareTo import used via comparison operators', () => {
+      const code = `package com.example
+
+import com.example.math.compareTo
+import java.util.HashMap
+
+class Test {
+    fun run(a: MyNum, b: MyNum): Boolean {
+        return a < b
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.math.compareTo');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve rangeTo import used via .. operator', () => {
+      const code = `package com.example
+
+import com.example.math.rangeTo
+import java.util.HashMap
+
+class Test {
+    fun run(a: MyNum, b: MyNum) {
+        val range = a..b
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.math.rangeTo');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve inc and dec imports used via postfix ++ and -- operators', () => {
+      const code = `package com.example
+
+import com.example.math.inc
+import com.example.math.dec
+import java.util.HashMap
+
+class Test {
+    fun run(a: MyNum): MyNum {
+        var x = a
+        x++
+        x--
+        return x
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.math.inc');
+      expect(cleaned).toContain('import com.example.math.dec');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve inc and dec imports used via prefix ++ and -- operators', () => {
+      const code = `package com.example
+
+import com.example.math.inc
+import com.example.math.dec
+import java.util.HashMap
+
+class Test {
+    fun run(a: MyNum): MyNum {
+        var x = a
+        ++x
+        --x
+        return x
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.math.inc');
+      expect(cleaned).toContain('import com.example.math.dec');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve unaryMinus and not imports used via prefix operators', () => {
+      const code = `package com.example
+
+import com.example.math.unaryMinus
+import com.example.math.not
+import java.util.HashMap
+
+class Test {
+    fun run(a: MyNum, b: MyBool) {
+        val c = -a
+        val d = !b
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.math.unaryMinus');
+      expect(cleaned).toContain('import com.example.math.not');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('should preserve component1..component3 imports for three-element destructuring', () => {
+      const code = `package com.example
+
+import com.example.triples.component1
+import com.example.triples.component2
+import com.example.triples.component3
+import java.util.HashMap
+
+class Test {
+    fun run(triple: MyTriple) {
+        val (a, b, c) = triple
+        println("${'$'}a ${'$'}b ${'$'}c")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIdentifiers = extractUsedIdentifiers(tree, code, 'kotlin');
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+      for (const op of implicit) usedIdentifiers.add(op);
+      const cleaned = removeUnusedImports(code, imports, usedIdentifiers);
+
+      expect(cleaned).toContain('import com.example.triples.component1');
+      expect(cleaned).toContain('import com.example.triples.component2');
+      expect(cleaned).toContain('import com.example.triples.component3');
+      expect(cleaned).not.toContain('import java.util.HashMap');
+    });
+
+    it('extractImplicitlyUsedOperators should detect property_delegate', () => {
+      const code = `package com.example
+
+class Test {
+    var x: String by SomeDelegate()
+}
+`;
+      const tree = parseKotlin(code);
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+
+      expect(implicit.has('getValue')).toBe(true);
+      expect(implicit.has('setValue')).toBe(true);
+      expect(implicit.has('provideDelegate')).toBe(true);
+    });
+
+    it('extractImplicitlyUsedOperators should be empty with no implicit operators', () => {
+      const code = `package com.example
+
+class Test {
+    fun hello() = println("hi")
+}
+`;
+      const tree = parseKotlin(code);
+      const implicit = extractImplicitlyUsedOperators(tree, 'kotlin');
+
+      expect(implicit.has('getValue')).toBe(false);
+      expect(implicit.has('iterator')).toBe(false);
+      expect(implicit.has('component1')).toBe(false);
+    });
+
+    it('should handle fixture file OperatorExtensionImports.kt without removing operator imports', () => {
+      const fixturePath = path.join(process.cwd(), '__tests__', 'fixtures', 'kotlin', 'OperatorExtensionImports.kt');
+      const originalCode = fs.readFileSync(fixturePath, 'utf-8');
+
+      const tempPath = path.join(process.cwd(), '__tests__', 'temp', `OperatorExtensionImportsTest-${Date.now()}.kt`);
+      if (!fs.existsSync(path.dirname(tempPath))) {
+        fs.mkdirSync(path.dirname(tempPath), { recursive: true });
+      }
+      fs.writeFileSync(tempPath, originalCode, 'utf-8');
+
+      cleanupKotlinFile(tempPath);
+      const cleaned = fs.readFileSync(tempPath, 'utf-8');
+
+      expect(cleaned).toContain('import com.example.delegates.getValue');
+      expect(cleaned).toContain('import com.example.delegates.setValue');
+      expect(cleaned).toContain('import com.example.delegates.provideDelegate');
+      expect(cleaned).toContain('import com.example.collections.iterator');
+      expect(cleaned).toContain('import com.example.collections.hasNext');
+      expect(cleaned).toContain('import com.example.collections.next');
+      expect(cleaned).toContain('import com.example.pairs.component1');
+      expect(cleaned).toContain('import com.example.pairs.component2');
+      expect(cleaned).toContain('import com.example.maps.get');
+      expect(cleaned).toContain('import com.example.maps.set');
+      expect(cleaned).toContain('import com.example.math.plus');
+      expect(cleaned).toContain('import com.example.math.minus');
+      expect(cleaned).toContain('import java.util.ArrayList');
+
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     });
   });
 });
