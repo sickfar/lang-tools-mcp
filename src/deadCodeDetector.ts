@@ -211,6 +211,12 @@ function isInSameClassScope(idNode: Parser.SyntaxNode, targetClassBody: Parser.S
     if (current === targetClassBody) return true;
     // If we hit another class body before reaching target, check if it's a companion object
     if (current.type === config.classBodyType && current !== targetClassBody) {
+      // For Kotlin: anonymous object literals capture the enclosing scope, so their
+      // class_body is transparent for scope traversal.
+      if (config.language === 'kotlin' && current.parent?.type === 'object_literal') {
+        current = current.parent;
+        continue;
+      }
       // For Kotlin: check bidirectional companion object transparency
       if (config.language === 'kotlin') {
         // Case 1: current class_body belongs to a companion_object inside targetClassBody

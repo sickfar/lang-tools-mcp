@@ -456,6 +456,91 @@ class Test {
       // helper() is called from lambda inside the class - should be used
       expect(findings).toHaveLength(0);
     });
+
+  });
+
+  describe('anonymous object scope transparency (false positive fixes)', () => {
+    it('should not flag private method called from anonymous object method', () => {
+      const code = `
+class Test {
+    val handler = object : Runnable {
+        override fun run() { doWork() }
+    }
+    private fun doWork() {}
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      expect(findings).toHaveLength(0);
+    });
+
+    it('should not flag private method called from anonymous object property getter', () => {
+      const code = `
+interface Bridge<T> { val value: T }
+class Test {
+    val bridge = object : Bridge<Int> {
+        override val value: Int get() = compute()
+    }
+    private fun compute(): Int = 42
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      expect(findings).toHaveLength(0);
+    });
+
+    it('should not flag private method called from both class method and anonymous object', () => {
+      const code = `
+class Test {
+    val handler = object : Runnable {
+        override fun run() { helper() }
+    }
+    private fun helper() {}
+    fun process() { helper() }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      expect(findings).toHaveLength(0);
+    });
+
+    it('should flag truly unused method while not flagging method used in anonymous object', () => {
+      const code = `
+class Test {
+    val handler = object : Runnable {
+        override fun run() { doWork() }
+    }
+    private fun doWork() {}
+    private fun neverCalled() {}
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      const names = findings.map(f => f.name);
+      expect(names).toContain('neverCalled');
+      expect(names).not.toContain('doWork');
+    });
+
+    it('should flag private method called only from plain nested class (scope boundary preserved)', () => {
+      const code = `
+class Outer {
+    class Nested {
+        fun nestedWork() { outerHelper() }
+    }
+    private fun outerHelper() {}
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      // outerHelper is called only from Nested (a named class, hard boundary) — should be flagged
+      const outerFindings = findings.filter(f => f.enclosingScope === 'Outer');
+      expect(outerFindings.map(f => f.name)).toContain('outerHelper');
+    });
   });
 
   describe('scope boundary: unused fields with inner classes', () => {
