@@ -51,3 +51,8 @@ class WithConstructor(val name: String, unusedCtorParam: Int) {
         println(name)
     }
 }
+
+// Parameter used only in $name string template - should NOT be flagged
+fun greetWithTemplate(greeting: String) {
+    println("$greeting World")
+}

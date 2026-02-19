@@ -163,6 +163,8 @@ fun topLevel(used: String, unusedParam: Int) {
       expect(names).not.toContain('b');
       expect(names).not.toContain('used');
       expect(names).not.toContain('_');
+      // Parameter used only in $greeting string template — should NOT be flagged
+      expect(names).not.toContain('greeting');
     });
   });
 
@@ -886,7 +888,7 @@ class Complex {
       expect(findings.map(f => f.name)).not.toContain('transformer');
     });
 
-    it('should distinguish formal params from function type params with same name', () => {
+    it('should distinguish formal params from function type params with same name (false positive fix)', () => {
       const code = `
 class Tricky {
     fun process(
@@ -906,6 +908,173 @@ class Tricky {
       expect(findings.map(f => f.name)).not.toContain('mapper');
       // Should only flag 'date' once (the formal parameter, not the type annotation one)
       expect(findings.filter(f => f.name === 'date')).toHaveLength(1);
+    });
+  });
+
+  describe('false positives: override properties', () => {
+    it('should not flag override val in anonymous object as unused local variable', () => {
+      const code = `
+interface Foo { val state: String }
+class Test {
+    fun method(): Foo {
+        return object : Foo {
+            override val state: String = "hello"
+        }
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedLocalVariables(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('state');
+    });
+
+    it('should not flag override var in anonymous object as unused local variable', () => {
+      const code = `
+interface Counter { var count: Int }
+class Test {
+    fun makeCounter(): Counter {
+        return object : Counter {
+            override var count: Int = 0
+        }
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedLocalVariables(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('count');
+    });
+
+    it('should not flag private override val at class level as unused field', () => {
+      const code = `
+interface Base { val state: String }
+class Impl : Base {
+    private override val state: String = "hello"
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('state');
+    });
+
+    it('should still flag non-override unused private fields', () => {
+      const code = `
+class Test {
+    private val unused = "dead"
+    fun doSomething() {}
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).toContain('unused');
+    });
+  });
+
+  describe('false positives: string template $identifier usage', () => {
+    it('should not flag parameter used only in simple $param string template', () => {
+      const code = `
+class Test {
+    fun greet(name: String) {
+        println("Hello \$name")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedParameters(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('name');
+    });
+
+    it('should not flag local variable used only in simple $var string template', () => {
+      const code = `
+class Test {
+    fun greet() {
+        val name = "World"
+        println("Hello \$name")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedLocalVariables(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('name');
+    });
+
+    it('should not flag private field used only in simple $field string template', () => {
+      const code = `
+class Test {
+    private val greeting = "Hello"
+    fun greet(name: String) {
+        println("\$greeting \$name")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('greeting');
+    });
+
+    it('should still flag parameters not used in any form', () => {
+      const code = `
+class Test {
+    fun process(used: String, unused: Int) {
+        println("Value: \$used")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedParameters(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('used');
+      expect(findings.map(f => f.name)).toContain('unused');
+    });
+
+    it('should recognize both $name and ${name} forms as usage', () => {
+      const code = `
+class Test {
+    fun greet(firstName: String, lastName: String) {
+        println("Hello \$firstName \${lastName}!")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedParameters(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('firstName');
+      expect(findings.map(f => f.name)).not.toContain('lastName');
+    });
+
+    it('should detect $identifier in multiline string literal (triple-quoted)', () => {
+      const code = `
+class Test {
+    fun buildQuery(table: String) {
+        val sql = """
+            SELECT * FROM \$table
+        """.trimIndent()
+        println(sql)
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedParameters(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('table');
+    });
+
+    it('should still flag non-override local in same method as override property', () => {
+      // Verifies that hasOverrideModifier check is targeted:
+      // only the override property is skipped, not other locals in the same method
+      const code = `
+interface Foo { val state: String }
+class Test {
+    fun method(): Foo {
+        val unused = 42
+        return object : Foo {
+            override val state: String = "hello"
+        }
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedLocalVariables(tree, code, KOTLIN_CONFIG);
+      // 'unused' is genuinely unused - should be flagged
+      expect(findings.map(f => f.name)).toContain('unused');
+      // 'state' in the anonymous object has override - should NOT be flagged
+      expect(findings.map(f => f.name)).not.toContain('state');
     });
   });
 });

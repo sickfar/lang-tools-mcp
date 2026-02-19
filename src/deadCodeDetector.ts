@@ -200,6 +200,12 @@ function collectIdentifiers(node: Parser.SyntaxNode, sourceCode: string, config:
       ids.add(getSourceText(n, sourceCode));
     }
   }
+  // Kotlin: also collect $identifier form from string templates (not parsed as AST identifier nodes)
+  if (config.language === 'kotlin') {
+    for (const id of extractKotlinStringTemplateIds(node, sourceCode)) {
+      ids.add(id);
+    }
+  }
   return ids;
 }
 
@@ -477,6 +483,9 @@ export function detectUnusedLocalVariables(
     const varName = getLocalVarName(varNode, sourceCode, config);
     if (!varName) continue;
 
+    // Skip Kotlin override properties (implementing interface contracts in anonymous objects)
+    if (config.language === 'kotlin' && hasOverrideModifier(varNode, sourceCode)) continue;
+
     // Find the enclosing method body and check usage
     const enclosingMethod = getEnclosingMethod(varNode, config);
     if (!enclosingMethod) continue;
@@ -492,6 +501,11 @@ export function detectUnusedLocalVariables(
       }
     }
 
+    // Kotlin: also check $identifier usage in string templates
+    const stringTemplateIds = config.language === 'kotlin'
+      ? extractKotlinStringTemplateIds(body, sourceCode)
+      : new Set<string>();
+
     // Check if the variable name is used anywhere other than its own declaration
     const isUsed = allIds.some(({ name, node: idNode }) => {
       if (name !== varName) return false;
@@ -502,7 +516,7 @@ export function detectUnusedLocalVariables(
         parent = parent.parent;
       }
       return true;
-    });
+    }) || stringTemplateIds.has(varName);
 
     if (!isUsed) {
       const methodName = getMethodName(enclosingMethod, sourceCode, config);
@@ -575,6 +589,40 @@ function hasDelegation(fieldNode: Parser.SyntaxNode): boolean {
   return fieldNode.descendantsOfType('property_delegate').length > 0;
 }
 
+// Note: text.includes('override') also matches custom annotation names that contain
+// 'override' as a substring (e.g. @someOverride). This produces false negatives
+// (missed dead code) rather than false positives — the safer direction for this tool.
+// Consistent with isDataClass() and isPrivateField() patterns in this file.
+function hasOverrideModifier(node: Parser.SyntaxNode, sourceCode: string): boolean {
+  for (let i = 0; i < node.namedChildCount; i++) {
+    const child = node.namedChild(i)!;
+    if (child.type === 'modifiers') {
+      const text = getSourceText(child, sourceCode);
+      if (text.includes('override')) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * For Kotlin: extract identifiers from the simple `$identifier` (no-brace) string template form.
+ * tree-sitter-kotlin v1.1.0 does NOT create identifier AST nodes for `$name` — it lexes the `$`
+ * as a string_content node and folds the identifier text into the next string_content token.
+ * Only the `${expr}` form creates an interpolation → identifier AST node (handled via
+ * descendantsOfType). This function fills the gap for the `$name` form via regex.
+ */
+function extractKotlinStringTemplateIds(node: Parser.SyntaxNode, sourceCode: string): Set<string> {
+  const ids = new Set<string>();
+  for (const strNode of node.descendantsOfType(['string_literal', 'multiline_string_literal'])) {
+    const text = getSourceText(strNode, sourceCode);
+    const matches = text.matchAll(/\$([a-zA-Z_]\w*)/g);
+    for (const match of matches) {
+      ids.add(match[1]);
+    }
+  }
+  return ids;
+}
+
 export function detectUnusedFields(
   tree: Parser.Tree,
   sourceCode: string,
@@ -597,8 +645,26 @@ export function detectUnusedFields(
       }
     }
 
+    // Kotlin: collect string template identifiers from this class scope once per class body.
+    // Uses isInSameClassScope guard to exclude strings in nested class bodies.
+    const classStringTemplateIds: Set<string> = config.language === 'kotlin'
+      ? (() => {
+          const ids = new Set<string>();
+          for (const strNode of classBody.descendantsOfType(['string_literal', 'multiline_string_literal'])) {
+            if (!isInSameClassScope(strNode, classBody, config)) continue;
+            const text = getSourceText(strNode, sourceCode);
+            const matches = text.matchAll(/\$([a-zA-Z_]\w*)/g);
+            for (const match of matches) ids.add(match[1]);
+          }
+          return ids;
+        })()
+      : new Set<string>();
+
     for (const fieldNode of fieldNodes) {
       if (!isPrivateField(fieldNode, sourceCode, config)) continue;
+
+      // Skip Kotlin override fields (implementing interface contracts)
+      if (config.language === 'kotlin' && hasOverrideModifier(fieldNode, sourceCode)) continue;
 
       const fieldName = getFieldName(fieldNode, sourceCode, config);
       if (!fieldName) continue;
@@ -616,7 +682,7 @@ export function detectUnusedFields(
           parent = parent.parent;
         }
         return true;
-      });
+      }) || classStringTemplateIds.has(fieldName);
 
       if (!isUsed) {
         findings.push({
