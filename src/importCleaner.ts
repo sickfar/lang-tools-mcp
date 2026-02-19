@@ -4,7 +4,7 @@
 
 import Parser from "tree-sitter";
 import Java from "tree-sitter-java";
-import Kotlin from "tree-sitter-kotlin";
+import Kotlin from "@tree-sitter-grammars/tree-sitter-kotlin";
 import * as fs from "fs";
 
 /**
@@ -23,10 +23,10 @@ export interface ImportInfo {
  * Create parsers for Java and Kotlin
  */
 const javaParser = new Parser();
-javaParser.setLanguage(Java);
+javaParser.setLanguage(Java as unknown as Parser.Language);
 
 const kotlinParser = new Parser();
-kotlinParser.setLanguage(Kotlin);
+kotlinParser.setLanguage(Kotlin as unknown as Parser.Language);
 
 /**
  * Extract imports from Java source code
@@ -88,8 +88,9 @@ export function extractKotlinImports(tree: Parser.Tree, sourceCode: string): Imp
   const imports: ImportInfo[] = [];
   const rootNode = tree.rootNode;
 
-  // Find all import declarations
-  const importHeaders = rootNode.descendantsOfType('import_header');
+  // Find all import declarations (node type changed from 'import_header' to 'import' in
+  // @tree-sitter-grammars/tree-sitter-kotlin; filter childCount > 0 to skip the keyword leaf)
+  const importHeaders = rootNode.descendantsOfType('import').filter(n => n.childCount > 0);
 
   for (const importNode of importHeaders) {
     // Tree-sitter's Kotlin parser sometimes includes trailing content (comments, whitespace)
@@ -160,7 +161,7 @@ export function extractUsedIdentifiers(tree: Parser.Tree, sourceCode: string, la
   // Get all identifier nodes, but exclude those in import declarations and package declarations
   const identifierTypes = language === 'java'
     ? ['identifier', 'type_identifier']
-    : ['simple_identifier', 'type_identifier'];
+    : ['identifier'];
 
   for (const identifierType of identifierTypes) {
     const identifierNodes = rootNode.descendantsOfType(identifierType);
@@ -177,7 +178,7 @@ export function extractUsedIdentifiers(tree: Parser.Tree, sourceCode: string, la
             break;
           }
         } else if (language === 'kotlin') {
-          if (parent.type === 'import_header' || parent.type === 'package_header' || parent.type === 'import_list') {
+          if (parent.type === 'import' || parent.type === 'package_header') {
             inImportOrPackage = true;
             break;
           }
@@ -228,23 +229,24 @@ export function extractImplicitlyUsedOperators(tree: Parser.Tree, _language: 'ko
   }
 
   // indexed access → get, set
-  if (root.descendantsOfType('indexing_expression').length > 0) {
+  if (root.descendantsOfType('index_expression').length > 0) {
     implicit.add('get');
     implicit.add('set');
   }
 
   // arithmetic / comparison operators → operator function names
+  // Note: @tree-sitter-grammars/tree-sitter-kotlin renamed several expression node types:
+  //   additive/multiplicative/comparison_expression → binary_expression
+  //   prefix/postfix_expression → unary_expression
+  //   check_expression → in_expression (handled below) / is_expression (no operator function, omitted)
   const operatorNodeMap: Record<string, string[]> = {
-    additive_expression: ['plus', 'minus'],
-    multiplicative_expression: ['times', 'div', 'rem'],
-    // prefix_expression covers: -a (unaryMinus), +a (unaryPlus), !a (not), ++a (inc), --a (dec)
-    prefix_expression: ['unaryPlus', 'unaryMinus', 'not', 'inc', 'dec'],
-    // postfix_expression covers: a++ (inc), a-- (dec)
-    postfix_expression: ['inc', 'dec'],
+    // binary_expression covers: +, -, *, /, %, <, >, <=, >=, ==, etc.
+    binary_expression: ['plus', 'minus', 'times', 'div', 'rem', 'compareTo'],
     range_expression: ['rangeTo'],
-    // check_expression covers: x in y (contains) and x is T (no operator function, harmless)
-    check_expression: ['contains'],
-    comparison_expression: ['compareTo'],
+    // in_expression covers: x in y (contains) and x !in y (not contains)
+    in_expression: ['contains'],
+    // unary_expression covers both prefix (-a, !a, ++a, --a) and postfix (a++, a--)
+    unary_expression: ['unaryPlus', 'unaryMinus', 'not', 'inc', 'dec'],
   };
   for (const [nodeType, operators] of Object.entries(operatorNodeMap)) {
     if (root.descendantsOfType(nodeType).length > 0) {

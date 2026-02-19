@@ -11,7 +11,7 @@
     "build"
   ],
   "scripts": {
-    "build": "npm run typecheck && esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=build/index.js --external:tree-sitter --external:tree-sitter-java --external:tree-sitter-kotlin --external:@modelcontextprotocol/sdk --sourcemap && chmod +x build/index.js",
+    "build": "npm run typecheck && esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=build/index.js --external:tree-sitter --external:tree-sitter-java --external:@tree-sitter-grammars/tree-sitter-kotlin --external:@modelcontextprotocol/sdk --sourcemap && chmod +x build/index.js",
     "build:dev": "tsc",
     "typecheck": "tsc --noEmit",
     "prepare": "npm run build",
@@ -21,11 +21,17 @@
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "0.6.0",
-    "tree-sitter": "^0.21.1",
-    "tree-sitter-java": "^0.21.0",
-    "tree-sitter-kotlin": "^0.3.6"
+    "@tree-sitter-grammars/tree-sitter-kotlin": "^1.1.0",
+    "tree-sitter": "^0.22.4",
+    "tree-sitter-java": "^0.23.5"
+  },
+  "overrides": {
+    "tree-sitter": "^0.22.4"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",

@@ -71,8 +71,8 @@ export const KOTLIN_CONFIG: LanguageConfig = {
   methodDeclarationTypes: ['function_declaration'],
   constructorDeclarationType: 'primary_constructor',
   formalParameterTypes: ['parameter', 'class_parameter'],
-  parameterNameNodeType: 'simple_identifier',
-  identifierTypes: ['simple_identifier'],
+  parameterNameNodeType: 'identifier',
+  identifierTypes: ['identifier'],
   classDeclarationType: 'class_declaration',
   classBodyType: 'class_body',
   fieldDeclarationTypes: ['property_declaration'],
@@ -95,10 +95,10 @@ function findNameNode(node: Parser.SyntaxNode, config: LanguageConfig): Parser.S
   // Try field name 'name' first (works for Java)
   const fieldName = node.childForFieldName('name');
   if (fieldName) return fieldName;
-  // Fallback for Kotlin: first simple_identifier or type_identifier child
+  // Fallback for Kotlin: first identifier child
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = node.namedChild(i)!;
-    if (child.type === 'simple_identifier' || child.type === 'type_identifier' || child.type === 'identifier') {
+    if (child.type === 'identifier') {
       return child;
     }
   }
@@ -436,10 +436,10 @@ function getLocalVarName(node: Parser.SyntaxNode, sourceCode: string, config: La
       if (nameField) return getSourceText(nameField, sourceCode);
     }
   } else {
-    // Kotlin: property_declaration -> variable_declaration -> simple_identifier
+    // Kotlin: property_declaration -> variable_declaration -> identifier
     const varDecls = node.descendantsOfType('variable_declaration');
     if (varDecls.length > 0) {
-      const ids = varDecls[0].descendantsOfType('simple_identifier');
+      const ids = varDecls[0].descendantsOfType('identifier');
       if (ids.length > 0) return getSourceText(ids[0], sourceCode);
     }
   }
@@ -547,7 +547,7 @@ function getFieldName(fieldNode: Parser.SyntaxNode, sourceCode: string, config: 
   } else {
     const varDecls = fieldNode.descendantsOfType('variable_declaration');
     if (varDecls.length > 0) {
-      const ids = varDecls[0].descendantsOfType('simple_identifier');
+      const ids = varDecls[0].descendantsOfType('identifier');
       if (ids.length > 0) return getSourceText(ids[0], sourceCode);
     }
   }
@@ -737,7 +737,7 @@ export function detectUnusedPrivateMethods(
             if (nameField) calledNames.add(getSourceText(nameField, sourceCode));
           } else {
             const firstChild = inv.namedChild(0);
-            if (firstChild && (firstChild.type === 'simple_identifier')) {
+            if (firstChild && (firstChild.type === 'identifier')) {
               calledNames.add(getSourceText(firstChild, sourceCode));
             }
           }
@@ -750,7 +750,7 @@ export function detectUnusedPrivateMethods(
       for (const refType of config.methodReferenceTypes) {
         for (const ref of bodyToScan.descendantsOfType(refType)) {
           if (!isInSameClassScope(ref, classBody, config)) continue;
-          const ids = ref.descendantsOfType(config.language === 'java' ? 'identifier' : 'simple_identifier');
+          const ids = ref.descendantsOfType('identifier');
           if (ids.length > 0) {
             calledNames.add(getSourceText(ids[ids.length - 1], sourceCode));
           }
