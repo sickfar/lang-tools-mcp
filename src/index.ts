@@ -116,7 +116,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             paths: {
               type: "array",
               items: { type: "string" },
-              description: "Source root directories to scan recursively for .java files."
+              description: "Source root directories to scan recursively for .java files. Also used as resource roots for META-INF/services lookup when the serviceDiscovery entrypoint condition is active."
             },
             activeProfiles: {
               type: "array",
@@ -136,7 +136,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             paths: {
               type: "array",
               items: { type: "string" },
-              description: "Source root directories to scan recursively for .kt files."
+              description: "Source root directories to scan recursively for .kt files. Also used as resource roots for META-INF/services lookup when the serviceDiscovery entrypoint condition is active."
             },
             activeProfiles: {
               type: "array",

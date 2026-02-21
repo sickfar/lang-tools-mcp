@@ -101,8 +101,7 @@ Detects dead code in Kotlin files using tree-sitter parsing. Detection only — 
 Cross-file detection of unused public and protected API in Java. Finds public/protected classes, methods, and fields that are never referenced across all analyzed files. Detection only — does not modify files.
 
 **Input:**
-- `paths`: Array of Java file paths or directories. Directories are scanned recursively for `.java` files.
-- `sourceRoots` *(optional)*: Source root directories used to locate `META-INF/services` for service-discovery entrypoint matching. Defaults to `paths`.
+- `paths`: Source root directories to scan recursively for `.java` files. Also used as resource roots for `META-INF/services` lookup when the `serviceDiscovery` entrypoint condition is active.
 - `activeProfiles` *(optional)*: List of profile names to activate (built-in or user-defined). See [Configuration](#configuration).
 
 **Output:**
@@ -141,8 +140,7 @@ Cross-file detection of unused public and protected API in Java. Finds public/pr
 Cross-file detection of unused public, internal, and protected API in Kotlin. Same behavior as the Java variant but for `.kt` files.
 
 **Input:**
-- `paths`: Array of Kotlin file paths or directories.
-- `sourceRoots` *(optional)*: Source root directories for `META-INF/services` lookup.
+- `paths`: Source root directories to scan recursively for `.kt` files. Also used as resource roots for `META-INF/services` lookup when the `serviceDiscovery` entrypoint condition is active.
 - `activeProfiles` *(optional)*: List of profile names to activate.
 
 **Detects:**
@@ -231,7 +229,6 @@ Marks common Spring Framework entry points as alive.
 |---|---|
 | Spring component (infrastructure bean) | `@Component` + implements interface from `org.springframework.*` |
 | Spring service bean | `@Service` + implements interface from `org.springframework.*` |
-| Spring repository bean | `@Repository` + implements interface from `org.springframework.data.*` |
 | Spring configuration class | `@Configuration` |
 | Spring bean producer method | `@Bean` |
 | Spring web controller | `@Controller` |

@@ -72,13 +72,6 @@ const BUILT_IN_PROFILES: ProfileConfig[] = [
           { implementsInterfaceFromPackage: 'org.springframework.*' },
         ],
       },
-      {
-        name: 'Spring repository bean',
-        rules: [
-          { annotatedBy: 'org.springframework.stereotype.Repository' },
-          { implementsInterfaceFromPackage: 'org.springframework.data.*' },
-        ],
-      },
       { name: 'Spring configuration class',  rules: [{ annotatedBy: 'org.springframework.context.annotation.Configuration' }] },
       { name: 'Spring bean producer method',  rules: [{ annotatedBy: 'org.springframework.context.annotation.Bean' }] },
       { name: 'Spring web controller',        rules: [{ annotatedBy: 'org.springframework.stereotype.Controller' }] },
