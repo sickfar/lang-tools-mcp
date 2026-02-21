@@ -7,11 +7,10 @@ import * as os from 'os';
 export type ConditionConfig =
   | { annotatedBy: string }
   | { implementsInterfaceFromPackage: string }
-  | { extendsFromPackage: string }
+  | { extendsClassFromPackage: string }
   | { overridesMethodFromInterface: string }
   | { namePattern: string }
   | { packagePattern: string }
-  | { interfaces: string }
   | { serviceDiscovery: true };
 
 export interface EntrypointConfig {
@@ -35,11 +34,10 @@ export interface LangToolsConfig {
 export type ResolvedCondition =
   | { type: 'annotatedBy'; fqn: string }
   | { type: 'implementsInterfaceFromPackage'; pattern: RegExp }
-  | { type: 'extendsFromPackage'; pattern: RegExp }
+  | { type: 'extendsClassFromPackage'; pattern: RegExp }
   | { type: 'overridesMethodFromInterface'; pattern: RegExp }
   | { type: 'namePattern'; regex: RegExp }
   | { type: 'packagePattern'; regex: RegExp }
-  | { type: 'interfaces'; name: string }
   | { type: 'serviceDiscovery' };
 
 export interface ResolvedEntrypoint {
@@ -292,8 +290,8 @@ function resolveCondition(cond: ConditionConfig): ResolvedCondition {
   if ('implementsInterfaceFromPackage' in cond) {
     return { type: 'implementsInterfaceFromPackage', pattern: globToRegex(cond.implementsInterfaceFromPackage) };
   }
-  if ('extendsFromPackage' in cond) {
-    return { type: 'extendsFromPackage', pattern: globToRegex(cond.extendsFromPackage) };
+  if ('extendsClassFromPackage' in cond) {
+    return { type: 'extendsClassFromPackage', pattern: globToRegex(cond.extendsClassFromPackage) };
   }
   if ('overridesMethodFromInterface' in cond) {
     return { type: 'overridesMethodFromInterface', pattern: globToRegex(cond.overridesMethodFromInterface) };
@@ -303,9 +301,6 @@ function resolveCondition(cond: ConditionConfig): ResolvedCondition {
   }
   if ('packagePattern' in cond) {
     return { type: 'packagePattern', regex: globToRegex(cond.packagePattern) };
-  }
-  if ('interfaces' in cond) {
-    return { type: 'interfaces', name: cond.interfaces };
   }
   // serviceDiscovery: true
   return { type: 'serviceDiscovery' };

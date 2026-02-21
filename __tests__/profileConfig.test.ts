@@ -186,15 +186,20 @@ describe('resolveProfiles', () => {
     expect('pattern' in cond && cond.pattern.test('com.example.Foo')).toBe(false);
   });
 
-  test('interfaces condition compiles to { type, name }', () => {
+  test('extendsClassFromPackage compiles to { type, pattern }', () => {
     const config: LangToolsConfig = {
       profiles: [{
         name: 'myProfile',
-        entrypoints: [{ name: 'Serializable', rules: [{ interfaces: 'Serializable' }] }],
+        entrypoints: [{ name: 'extends class from pkg', rules: [{ extendsClassFromPackage: 'com.example.*' }] }],
       }],
     };
     const result = resolveProfiles(['myProfile'], config);
-    expect(result.entrypoints[0].conditions[0]).toEqual({ type: 'interfaces', name: 'Serializable' });
+    const cond = result.entrypoints[0].conditions[0];
+    expect(cond.type).toBe('extendsClassFromPackage');
+    if (cond.type === 'extendsClassFromPackage') {
+      expect(cond.pattern.test('com.example.Foo')).toBe(true);
+      expect(cond.pattern.test('org.other.Foo')).toBe(false);
+    }
   });
 
   test('serviceDiscovery condition compiles to { type: "serviceDiscovery" }', () => {
@@ -318,7 +323,7 @@ describe('resolveProfiles', () => {
         entrypoints: [
           { name: 'first', rules: [{ annotatedBy: 'com.example.First' }] },
           { name: 'second', rules: [{ annotatedBy: 'com.example.Second' }] },
-          { name: 'third', rules: [{ interfaces: 'Runnable' }] },
+          { name: 'third', rules: [{ namePattern: 'run*' }] },
         ],
       }],
     };

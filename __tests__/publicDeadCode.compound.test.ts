@@ -261,10 +261,10 @@ describe('backward-compat: annotation-only entrypoints still work', () => {
     expect(allNames).not.toContain('teardown');
   });
 
-  it('java: interface rule (single-condition) still protects whole class', () => {
+  it('java: implementsInterfaceFromPackage rule still protects class implementing Serializable', () => {
     const { dir, files } = getJavaFiles('interface_rule');
     const rules = resolveProfiles(['myProfile'], {
-      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'interface Serializable', rules: [{ interfaces: 'Serializable' }] }] }]
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'interface Serializable', rules: [{ implementsInterfaceFromPackage: 'java.io.*' }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
     const serializableFindings = result.files
