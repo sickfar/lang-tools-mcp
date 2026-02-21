@@ -6,7 +6,7 @@ MCP (Model Context Protocol) server that provides tools to automate lint fixes a
 
 ## Features
 
-This MCP server provides four tools:
+This MCP server provides six tools:
 
 ### 1. `cleanup_unused_imports_java`
 Cleans up unused imports in Java files using tree-sitter parsing.
@@ -97,6 +97,207 @@ Detects dead code in Kotlin files using tree-sitter parsing. Detection only — 
 - Unused private functions
 - Scope-aware: correctly handles inner classes, companion objects
 
+### 5. `detect_public_dead_code_java`
+Cross-file detection of unused public and protected API in Java. Finds public/protected classes, methods, and fields that are never referenced across all analyzed files. Detection only — does not modify files.
+
+**Input:**
+- `paths`: Array of Java file paths or directories. Directories are scanned recursively for `.java` files.
+- `sourceRoots` *(optional)*: Source root directories used to locate `META-INF/services` for service-discovery entrypoint matching. Defaults to `paths`.
+- `activeProfiles` *(optional)*: List of profile names to activate (built-in or user-defined). See [Configuration](#configuration).
+
+**Output:**
+```json
+{
+  "status": "OK",
+  "sourceRoots": ["src/main/java"],
+  "filesAnalyzed": 12,
+  "activeProfiles": ["spring"],
+  "totalFindings": 3,
+  "files": [
+    {
+      "file": "src/main/java/com/example/OldHelper.java",
+      "findings": [
+        {
+          "category": "unused_public_class",
+          "name": "OldHelper",
+          "line": 5,
+          "column": 0,
+          "enclosingScope": "OldHelper",
+          "message": "public class 'OldHelper' in class OldHelper appears to be unused"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Detects:**
+- Unused public and protected classes, methods, and fields
+- Cross-file: a declaration is considered used if it is referenced by name in any other analyzed file
+- Profile-aware: entrypoints (e.g. Spring beans, JUnit tests) are excluded from findings
+- Class cascade: if a class matches an entrypoint, all its members are kept alive
+
+### 6. `detect_public_dead_code_kotlin`
+Cross-file detection of unused public, internal, and protected API in Kotlin. Same behavior as the Java variant but for `.kt` files.
+
+**Input:**
+- `paths`: Array of Kotlin file paths or directories.
+- `sourceRoots` *(optional)*: Source root directories for `META-INF/services` lookup.
+- `activeProfiles` *(optional)*: List of profile names to activate.
+
+**Detects:**
+- Unused public, internal, and protected classes, functions, and properties
+- Top-level functions and properties
+- Companion object members
+
+## Configuration
+
+`detect_public_dead_code_java` and `detect_public_dead_code_kotlin` support a profile system that lets you mark framework entry points as "alive" so they are not reported as dead code.
+
+### Config file location
+
+The server reads from the first found location:
+
+1. `$LANG_TOOLS_CONFIG` environment variable (explicit path override)
+2. `$XDG_CONFIG_HOME/lang-tools/config.json`
+3. `~/.config/lang-tools/config.json` (default)
+
+### Config format
+
+```json
+{
+  "activeProfiles": ["spring", "junit5"],
+  "profiles": [
+    {
+      "name": "my-framework",
+      "keepExternalOverrides": true,
+      "entrypoints": [
+        {
+          "name": "My annotation",
+          "rules": [
+            { "annotatedBy": "com.example.MyEntrypoint" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `activeProfiles` | `string[]` | Profile names to apply. Can be built-in (`spring`, `junit5`, `android`) or user-defined in `profiles`. |
+| `profiles` | `ProfileConfig[]` | User-defined profiles. These extend the built-in profiles. |
+
+#### Profile fields
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | `string` | Unique profile name. Referenced in `activeProfiles`. |
+| `keepExternalOverrides` | `boolean` | When `false`, methods that override external (non-analyzed) APIs are also reported. Default: `true`. |
+| `entrypoints` | `EntrypointConfig[]` | List of entrypoints. A declaration matching **any** entrypoint is considered alive. |
+
+#### Entrypoint fields
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | `string` | Human-readable label for this entrypoint (required, used in error messages). |
+| `rules` | `ConditionConfig[]` | List of conditions. **All** conditions must match (AND logic). Must have at least one rule. |
+
+#### Condition types
+
+All conditions within one entrypoint are AND'd together. Conditions across different entrypoints are OR'd.
+
+| Condition | Value | Matches when |
+|---|---|---|
+| `annotatedBy` | FQN string, e.g. `"org.springframework.stereotype.Component"` | The declaration has that annotation AND the file imports it (exact or wildcard). |
+| `implementsInterfaceFromPackage` | Package glob, e.g. `"org.springframework.*"` | The class implements any interface imported from a matching package. |
+| `extendsFromPackage` | Package glob, e.g. `"org.springframework.*"` | The class extends a class imported from a matching package. |
+| `overridesMethodFromInterface` | Package glob | The method has `override`/`@Override` AND the enclosing class implements an interface from that package. |
+| `namePattern` | Glob string, e.g. `"on*"` | The declaration name matches the glob (`*` = any chars, `?` = one char). |
+| `packagePattern` | Glob string, e.g. `"com.example.api.*"` | The file's package declaration matches the glob. |
+| `interfaces` | Simple name, e.g. `"Runnable"` | The class directly lists that interface name (no import resolution). |
+| `serviceDiscovery` | `true` | The class is registered in `META-INF/services`. |
+
+> **Note on `annotatedBy` import resolution:** Package wildcards in import statements (e.g. `import org.springframework.*`) are treated as recursive prefix matches covering all sub-packages. This is a conservative approximation that avoids false positives at the cost of occasionally missing dead code when a very broad wildcard import is used.
+
+### Built-in profiles
+
+#### `spring`
+
+Marks common Spring Framework entry points as alive.
+
+| Entrypoint | Conditions (all must match) |
+|---|---|
+| Spring component (infrastructure bean) | `@Component` + implements interface from `org.springframework.*` |
+| Spring service bean | `@Service` + implements interface from `org.springframework.*` |
+| Spring repository bean | `@Repository` + implements interface from `org.springframework.data.*` |
+| Spring configuration class | `@Configuration` |
+| Spring bean producer method | `@Bean` |
+| Spring web controller | `@Controller` |
+| Spring REST controller | `@RestController` |
+| Spring request mapping | `@RequestMapping` |
+| Spring GET/POST/PUT/DELETE/PATCH mapping | `@GetMapping` / `@PostMapping` / etc. |
+| Spring scheduled method | `@Scheduled` |
+| Spring event listener | `@EventListener` |
+| Spring injection point | `@Autowired` |
+| Spring value injection | `@Value` |
+| Spring config properties | `@ConfigurationProperties` |
+
+> The compound rule for `@Component` and `@Service` means a class annotated with `@Component` alone (with no Spring interface) will still be reported as dead code. This is intentional — a bare `@Component` without a Spring interface is often an accidental annotation.
+
+#### `junit5`
+
+Marks JUnit 5 test methods as alive.
+
+Covers: `@Test`, `@BeforeEach`, `@AfterEach`, `@BeforeAll`, `@AfterAll`, `@ParameterizedTest`, `@Suite`, `@Nested`, `@TestFactory`, `@RepeatedTest`, `@ExtendWith`, `@Tag`.
+
+#### `android`
+
+Marks Android lifecycle callbacks as alive via name pattern matching.
+
+Covers: `onCreate`, `onStart`, `onResume`, `onPause`, `onStop`, `onDestroy`, `onCreateView`, `onViewCreated`, `onAttach`, `onDetach`, `onReceive`, `onBind`, `onUnbind`, `onRebind`, `onSaveInstanceState`, `onRestoreInstanceState`, `onActivityResult`, `onOptionsItemSelected`, `onCreateOptionsMenu`, `onRequestPermissionsResult`, `onBackPressed`.
+
+### Example: Spring project
+
+```json
+{
+  "activeProfiles": ["spring", "junit5"]
+}
+```
+
+With this config, Spring beans, controllers, scheduled methods, and all JUnit 5 test methods are excluded from dead-code findings.
+
+### Example: Custom entrypoint
+
+```json
+{
+  "activeProfiles": ["spring", "junit5", "my-api"],
+  "profiles": [
+    {
+      "name": "my-api",
+      "entrypoints": [
+        {
+          "name": "Public API package",
+          "rules": [{ "packagePattern": "com.example.api.*" }]
+        },
+        {
+          "name": "Plugin entry point",
+          "rules": [
+            { "annotatedBy": "com.example.plugin.Plugin" },
+            { "implementsInterfaceFromPackage": "com.example.plugin.*" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### `activeProfiles` tool parameter vs config file
+
+The `activeProfiles` parameter passed directly to the tool **replaces** (not extends) the `activeProfiles` from the config file. If you pass `activeProfiles: ["spring"]` in the tool call, the config file's `activeProfiles` is ignored. If you omit the parameter, the config file value is used.
+
 ## Installation
 
 ### Claude Code (Recommended)
@@ -144,17 +345,23 @@ Add to your configuration file (`~/Library/Application Support/Claude/claude_des
 
 ## Usage
 
-Ask Claude to clean up imports in a file or directory:
+Ask Claude to clean up imports or find dead code:
 
 ```
 Clean up unused imports in src/main/java/com/example/
 ```
 
-The server provides four tools:
+```
+Find unused public methods in src/main/java using the spring and junit5 profiles
+```
+
+The server provides six tools:
 - `cleanup_unused_imports_java` - Clean Java imports
 - `cleanup_unused_imports_kotlin` - Clean Kotlin imports
-- `detect_dead_code_java` - Detect dead code in Java files
-- `detect_dead_code_kotlin` - Detect dead code in Kotlin files
+- `detect_dead_code_java` - Detect unused private/local code in Java files
+- `detect_dead_code_kotlin` - Detect unused private/local code in Kotlin files
+- `detect_public_dead_code_java` - Cross-file detection of unused public API in Java
+- `detect_public_dead_code_kotlin` - Cross-file detection of unused public API in Kotlin
 
 ## Usage with Other MCP Clients
 
@@ -224,18 +431,28 @@ The server uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parser
 3. Removes imports that are not referenced
 4. Writes the cleaned code back to the file
 
-### Dead Code Detection
+### Dead Code Detection (private/local)
 
 1. Parses source into AST
 2. Runs four detectors: unused parameters, local variables, private fields, private methods
 3. Uses scope-aware traversal to handle nested classes, companion objects, and lambdas correctly
 4. Returns findings with file, line number, and context (method name, class name)
 
+### Public Dead Code Detection (cross-file)
+
+1. Parses all files into ASTs and collects all public/protected declarations
+2. Collects all identifier references across all files into a global used-names set
+3. Evaluates each declaration against active profile entrypoints (compound AND+OR logic)
+4. Class cascade: any class matching an entrypoint keeps all its members alive
+5. Reports declarations not referenced anywhere and not matched by any entrypoint
+
 ### Limitations
 
 - Wildcard imports are always kept (safer approach)
-- Dead code detection is single-file only (no cross-file analysis)
-- Overloaded methods with the same name: if any overload is called, all are considered used
+- `detect_dead_code_*`: single-file scope only (no cross-file analysis)
+- `detect_public_dead_code_*`: name-based reference matching — if two unrelated classes share the same name, referencing one keeps the other alive
+- Annotation/interface matching is import-based (no type inference); annotations used without imports (same package) may not match `annotatedBy` conditions
+- Overloaded methods with the same name: if any overload is referenced by name, all are considered used
 - Files with syntax errors will be skipped
 
 ## Error Handling
