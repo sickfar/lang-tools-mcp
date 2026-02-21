@@ -157,7 +157,7 @@ describe('name pattern rules', () => {
 
   it('get* pattern keeps getName and getId', () => {
     const activeRules = resolveProfiles(['myProfile'], {
-      customProfiles: { myProfile: { rules: [{ type: 'namePattern', patterns: ['get*'] }] } }
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'get* pattern', rules: [{ namePattern: 'get*' }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', activeRules, [dir], ['myProfile']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
@@ -169,7 +169,7 @@ describe('name pattern rules', () => {
 
   it('* pattern keeps everything', () => {
     const rules = resolveProfiles(['myProfile'], {
-      customProfiles: { myProfile: { rules: [{ type: 'namePattern', patterns: ['*'] }] } }
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'all names', rules: [{ namePattern: '*' }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
@@ -184,7 +184,7 @@ describe('interface rules', () => {
 
   it('interface rule protects ALL members of matching class', () => {
     const rules = resolveProfiles(['myProfile'], {
-      customProfiles: { myProfile: { rules: [{ type: 'interface', interfaces: ['Serializable'] }] } }
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'interface Serializable', rules: [{ interfaces: 'Serializable' }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
     // Check per-file: SerializableImpl's members should not be reported (whole class protected)
@@ -199,7 +199,7 @@ describe('interface rules', () => {
 
   it('PlainClass methods are reported (no interface match)', () => {
     const rules = resolveProfiles(['myProfile'], {
-      customProfiles: { myProfile: { rules: [{ type: 'interface', interfaces: ['Serializable'] }] } }
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'interface Serializable', rules: [{ interfaces: 'Serializable' }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
     const plainClassFindings = result.files
@@ -215,7 +215,7 @@ describe('service discovery rule', () => {
 
   it('class in META-INF/services is kept', () => {
     const rules = resolveProfiles(['myProfile'], {
-      customProfiles: { myProfile: { rules: [{ type: 'serviceDiscovery' }] } }
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'service discovery', rules: [{ serviceDiscovery: true }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
@@ -224,7 +224,7 @@ describe('service discovery rule', () => {
 
   it('unlisted class is reported', () => {
     const rules = resolveProfiles(['myProfile'], {
-      customProfiles: { myProfile: { rules: [{ type: 'serviceDiscovery' }] } }
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'service discovery', rules: [{ serviceDiscovery: true }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
@@ -246,7 +246,7 @@ describe('external override handling', () => {
 
   it('keepExternalOverrides: false - @Override methods ARE reported', () => {
     const rules = resolveProfiles(['strict'], {
-      customProfiles: { strict: { keepExternalOverrides: false, rules: [] } }
+      profiles: [{ name: 'strict', keepExternalOverrides: false, entrypoints: [] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['strict']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));

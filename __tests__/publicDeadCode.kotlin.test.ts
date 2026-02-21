@@ -194,7 +194,7 @@ describe('kotlin external override handling', () => {
 
   it('keepExternalOverrides: false - override methods ARE reported', () => {
     const rules = resolveProfiles(['strict'], {
-      customProfiles: { strict: { keepExternalOverrides: false, rules: [] } }
+      profiles: [{ name: 'strict', keepExternalOverrides: false, entrypoints: [] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'kotlin', rules, [dir], ['strict']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));

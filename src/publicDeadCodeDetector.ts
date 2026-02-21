@@ -16,7 +16,13 @@ import {
   hasAnnotation,
   hasOverrideModifier,
 } from './deadCodeDetector.js';
-import { ResolvedRules } from './profileConfig.js';
+import {
+  ResolvedRules,
+  ResolvedCondition,
+  ResolvedEntrypoint,
+  annotationMatchesImport,
+  interfaceIsFromPackage,
+} from './profileConfig.js';
 
 // --- Types ---
 
@@ -72,6 +78,103 @@ interface Declaration {
   isMainMethod: boolean;
   node: Parser.SyntaxNode;
   sourceCode: string;
+  filePackage: string;
+  fileImports: string[];
+}
+
+// --- File package and import extraction -------------------------------------
+
+/**
+ * Extracts the package name from a Java file's AST.
+ * Returns empty string if there is no package declaration.
+ */
+export function extractFilePackageJava(rootNode: Parser.SyntaxNode, sourceCode: string): string {
+  for (let i = 0; i < rootNode.childCount; i++) {
+    const child = rootNode.child(i)!;
+    if (child.type === 'package_declaration') {
+      // package_declaration: "package" scoped_identifier ";"
+      // The scoped_identifier is the package name
+      const nameNode = child.childForFieldName('name') ?? child.descendantsOfType('scoped_identifier')[0];
+      if (nameNode) return sourceCode.substring(nameNode.startIndex, nameNode.endIndex);
+      // Fallback: collect identifier nodes
+      const ids = child.descendantsOfType('identifier');
+      if (ids.length > 0) {
+        // Reconstruct from the full child text minus "package" keyword and ";"
+        const text = sourceCode.substring(child.startIndex, child.endIndex);
+        return text.replace(/^\s*package\s+/, '').replace(/\s*;\s*$/, '').trim();
+      }
+      return '';
+    }
+  }
+  return '';
+}
+
+/**
+ * Extracts import FQNs from a Java file's AST.
+ * Static imports are skipped. Wildcard imports are preserved as-is (e.g. org.springframework.*).
+ */
+export function extractFileImportsJava(rootNode: Parser.SyntaxNode, sourceCode: string): string[] {
+  const imports: string[] = [];
+  for (let i = 0; i < rootNode.childCount; i++) {
+    const child = rootNode.child(i)!;
+    if (child.type === 'import_declaration') {
+      const text = sourceCode.substring(child.startIndex, child.endIndex);
+      // Skip static imports
+      if (text.includes('static')) continue;
+      // Extract the FQN: remove "import " prefix and ";" suffix, trim whitespace
+      const fqn = text.replace(/^\s*import\s+/, '').replace(/\s*;\s*$/, '').trim();
+      if (fqn) imports.push(fqn);
+    }
+  }
+  return imports;
+}
+
+/**
+ * Extracts the package name from a Kotlin file's AST.
+ * Returns empty string if there is no package header.
+ */
+export function extractFilePackageKotlin(rootNode: Parser.SyntaxNode, sourceCode: string): string {
+  // Try 'package_header' first, then 'package' as fallback
+  const pkgNodes = rootNode.descendantsOfType('package_header');
+  const pkgNode = pkgNodes.length > 0 ? pkgNodes[0] : rootNode.descendantsOfType('package')[0];
+  if (!pkgNode) return '';
+  const text = sourceCode.substring(pkgNode.startIndex, pkgNode.endIndex);
+  // Strip "package" keyword and trim, ignoring trailing newline content
+  const firstNewline = text.indexOf('\n');
+  const line = firstNewline !== -1 ? text.substring(0, firstNewline) : text;
+  return line.replace(/^\s*package\s+/, '').trim();
+}
+
+/**
+ * Extracts import FQNs from a Kotlin file's AST.
+ * Aliased imports (import Foo as Bar) are stored as the original FQN (alias stripped).
+ * Wildcard imports are preserved as-is.
+ *
+ * Note: tree-sitter-kotlin uses node type 'import' (not 'import_header').
+ * Nodes with childCount === 0 are keyword leaf nodes and must be skipped.
+ */
+export function extractFileImportsKotlin(rootNode: Parser.SyntaxNode, sourceCode: string): string[] {
+  const imports: string[] = [];
+  // Use descendantsOfType to handle both 'import' and 'import_header' variants
+  const importNodes = [
+    ...rootNode.descendantsOfType('import').filter(n => n.childCount > 0),
+    ...rootNode.descendantsOfType('import_header').filter(n => n.childCount > 0),
+  ];
+  for (const importNode of importNodes) {
+    let text = sourceCode.substring(importNode.startIndex, importNode.endIndex);
+    // Trim to first newline (node may include trailing whitespace/comments)
+    const firstNewline = text.indexOf('\n');
+    if (firstNewline !== -1) text = text.substring(0, firstNewline);
+    // Remove "import " prefix
+    let fqn = text.replace(/^\s*import\s+/, '').trim();
+    // Strip alias: "org.example.Foo as Bar" -> "org.example.Foo"
+    const asMatch = fqn.match(/^(.+?)\s+as\s+\w+$/);
+    if (asMatch) {
+      fqn = asMatch[1].trim();
+    }
+    if (fqn) imports.push(fqn);
+  }
+  return imports;
 }
 
 // --- Helpers ---
@@ -284,7 +387,8 @@ function getImplementedInterfacesKotlin(classNode: Parser.SyntaxNode, sourceCode
   for (const ds of delegationSpecifiers) {
     const typeRefs = ds.descendantsOfType('user_type');
     for (const t of typeRefs) {
-      const simpleName = t.descendantsOfType('type_identifier')[0];
+      // Kotlin uses 'identifier' (not 'type_identifier') inside user_type
+      const simpleName = t.descendantsOfType('identifier')[0];
       if (simpleName) names.push(getSourceText(simpleName, sourceCode));
     }
   }
@@ -336,6 +440,69 @@ function isDataClassGeneratedMember(name: string): boolean {
   return DATA_CLASS_GENERATED.has(name) || COMPONENT_PATTERN.test(name);
 }
 
+// --- Entrypoint matching ---
+
+/**
+ * Checks a single condition against a declaration using full import resolution.
+ * - annotatedBy: simple name must match AND file must import the FQN (exact or wildcard)
+ * - implementsInterfaceFromPackage / extendsFromPackage: interface resolved via file imports
+ * - overridesMethodFromInterface: isOverride AND interface from package
+ * - namePattern / packagePattern: regex match against name / file package
+ * - interfaces: simple name match against implementedInterfaces (no import resolution)
+ * - serviceDiscovery: name found in META-INF/services
+ */
+function matchesCondition(
+  decl: Declaration,
+  cond: ResolvedCondition,
+  serviceNames: Set<string>,
+): boolean {
+  switch (cond.type) {
+    case 'annotatedBy': {
+      const lastDot = cond.fqn.lastIndexOf('.');
+      const simpleName = lastDot === -1 ? cond.fqn : cond.fqn.substring(lastDot + 1);
+      if (!decl.annotationNames.includes(simpleName)) return false;
+      return decl.fileImports.some(imp => annotationMatchesImport(cond.fqn, imp));
+    }
+    case 'implementsInterfaceFromPackage':
+      return decl.implementedInterfaces.some(i =>
+        interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
+      );
+    case 'extendsFromPackage':
+      return decl.implementedInterfaces.some(i =>
+        interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
+      );
+    case 'overridesMethodFromInterface':
+      if (!decl.isOverride) return false;
+      return decl.implementedInterfaces.some(i =>
+        interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
+      );
+    case 'namePattern':
+      return cond.regex.test(decl.name);
+    case 'packagePattern':
+      return cond.regex.test(decl.filePackage);
+    case 'interfaces':
+      return decl.implementedInterfaces.includes(cond.name);
+    case 'serviceDiscovery':
+      return serviceNames.has(decl.name) || serviceNames.has(decl.enclosingClass);
+  }
+}
+
+function matchesEntrypoint(
+  decl: Declaration,
+  ep: ResolvedEntrypoint,
+  serviceNames: Set<string>,
+): boolean {
+  return ep.conditions.every(c => matchesCondition(decl, c, serviceNames));
+}
+
+function isAliveByAnyEntrypoint(
+  decl: Declaration,
+  rules: ResolvedRules,
+  serviceNames: Set<string>,
+): boolean {
+  return rules.entrypoints.some(ep => matchesEntrypoint(decl, ep, serviceNames));
+}
+
 // --- Service Discovery ---
 
 function loadServiceDiscoveryNames(sourceRoots: string[]): Set<string> {
@@ -378,6 +545,8 @@ function collectDeclarationsJava(
 ): Declaration[] {
   const decls: Declaration[] = [];
   const config = JAVA_CONFIG;
+  const filePackage = extractFilePackageJava(rootNode, sourceCode);
+  const fileImports = extractFileImportsJava(rootNode, sourceCode);
 
   function processClass(classNode: Parser.SyntaxNode, parentInterfaces: string[]) {
     const classNameNode = findNameNode(classNode, config);
@@ -407,6 +576,8 @@ function collectDeclarationsJava(
         isMainMethod: false,
         node: classNode,
         sourceCode,
+        filePackage,
+        fileImports,
       });
     }
 
@@ -465,6 +636,8 @@ function collectDeclarationsJava(
             isMainMethod: false,
             node: child,
             sourceCode,
+            filePackage,
+            fileImports,
           });
         }
         continue;
@@ -496,6 +669,8 @@ function collectDeclarationsJava(
           isMainMethod: isMain,
           node: child,
           sourceCode,
+          filePackage,
+          fileImports,
         });
         continue;
       }
@@ -527,6 +702,8 @@ function collectDeclarationsJava(
             isMainMethod: false,
             node: decl,
             sourceCode,
+            filePackage,
+            fileImports,
           });
         }
         continue;
@@ -552,6 +729,8 @@ function collectDeclarationsKotlin(
 ): Declaration[] {
   const decls: Declaration[] = [];
   const config = KOTLIN_CONFIG;
+  const filePackage = extractFilePackageKotlin(rootNode, sourceCode);
+  const fileImports = extractFileImportsKotlin(rootNode, sourceCode);
 
   function processClass(classNode: Parser.SyntaxNode) {
     const classNameNode = findNameNode(classNode, config);
@@ -581,6 +760,8 @@ function collectDeclarationsKotlin(
         isMainMethod: false,
         node: classNode,
         sourceCode,
+        filePackage,
+        fileImports,
       });
     }
 
@@ -625,6 +806,8 @@ function collectDeclarationsKotlin(
           isMainMethod: false,
           node: param,
           sourceCode,
+          filePackage,
+          fileImports,
         });
       }
     }
@@ -667,6 +850,8 @@ function collectDeclarationsKotlin(
             isMainMethod: false,
             node: child,
             sourceCode,
+            filePackage,
+            fileImports,
           });
         }
         continue;
@@ -698,6 +883,8 @@ function collectDeclarationsKotlin(
           isMainMethod: false,
           node: child,
           sourceCode,
+          filePackage,
+          fileImports,
         });
         continue;
       }
@@ -728,6 +915,8 @@ function collectDeclarationsKotlin(
           isMainMethod: false,
           node: child,
           sourceCode,
+          filePackage,
+          fileImports,
         });
         continue;
       }
@@ -772,6 +961,8 @@ function collectDeclarationsKotlin(
           isMainMethod: false,
           node: child,
           sourceCode,
+          filePackage,
+          fileImports,
         });
       }
 
@@ -798,6 +989,8 @@ function collectDeclarationsKotlin(
           isMainMethod: false,
           node: child,
           sourceCode,
+          filePackage,
+          fileImports,
         });
       }
     }
@@ -837,6 +1030,8 @@ function collectDeclarationsKotlin(
         isMainMethod: name === 'main',
         node: child,
         sourceCode,
+        filePackage,
+        fileImports,
       });
       continue;
     }
@@ -864,6 +1059,8 @@ function collectDeclarationsKotlin(
         isMainMethod: false,
         node: child,
         sourceCode,
+        filePackage,
+        fileImports,
       });
       continue;
     }
@@ -902,8 +1099,11 @@ export function detectPublicDeadCodeInFiles(
   const config = language === 'java' ? JAVA_CONFIG : KOTLIN_CONFIG;
   const parseFile = language === 'java' ? parseJava : parseKotlin;
 
-  // Service discovery names
-  const serviceNames = resolvedRules.serviceDiscovery
+  // Service discovery names — load only if any entrypoint uses serviceDiscovery condition
+  const hasServiceDiscovery = resolvedRules.entrypoints.some(ep =>
+    ep.conditions.some(c => c.type === 'serviceDiscovery')
+  );
+  const serviceNames = hasServiceDiscovery
     ? loadServiceDiscoveryNames(sourceRoots)
     : new Set<string>();
 
@@ -956,26 +1156,14 @@ export function detectPublicDeadCodeInFiles(
   }
 
   // Pass 3: for each declaration, determine if it's dead
-  // Build sets for override and abstract checks
-  const allDeclNames = new Set(allDeclarations.map(d => d.name));
 
-  // Classes protected by service discovery (whole class alive)
-  const serviceProtectedClasses = new Set<string>();
-  if (resolvedRules.serviceDiscovery) {
-    for (const decl of allDeclarations) {
-      if (decl.declCategory === 'class' && serviceNames.has(decl.name)) {
-        serviceProtectedClasses.add(decl.name);
-      }
-    }
-  }
-
-  // Classes protected by interface rule
-  const interfaceProtectedClasses = new Set<string>();
-  if (resolvedRules.interfaceNames.size > 0) {
-    for (const decl of allDeclarations) {
-      if (decl.implementedInterfaces.some(iface => resolvedRules.interfaceNames.has(iface))) {
-        interfaceProtectedClasses.add(decl.enclosingClass);
-      }
+  // Build class-level cascade: class declarations that match any entrypoint protect all
+  // their members (methods, fields) transitively.
+  const classProtectedByEntrypoint = new Set<string>();
+  for (const decl of allDeclarations) {
+    if (decl.declCategory !== 'class') continue;
+    if (isAliveByAnyEntrypoint(decl, resolvedRules, serviceNames)) {
+      classProtectedByEntrypoint.add(decl.name);
     }
   }
 
@@ -989,27 +1177,16 @@ export function detectPublicDeadCodeInFiles(
     if (decl.isMainMethod) continue;
     if (decl.isDataClassMember) continue;
 
-    // Override handling for data class generated members
-    // (already handled by isDataClassMember)
-
     // 1. Name in global used set -> alive
     if (globalUsedNames.has(decl.name)) continue;
 
-    // 2. Annotation rule
-    if (decl.annotationNames.some(ann => resolvedRules.annotationNames.has(ann))) continue;
+    // 2. Class cascade: enclosing class protected by entrypoint -> member alive
+    if (classProtectedByEntrypoint.has(decl.enclosingClass)) continue;
 
-    // 3. Name pattern rule
-    if (resolvedRules.namePatterns.some(r => r.test(decl.name))) continue;
+    // 3. Declaration directly matched by any entrypoint -> alive
+    if (isAliveByAnyEntrypoint(decl, resolvedRules, serviceNames)) continue;
 
-    // 4. Interface rule: class implements a protected interface -> whole class protected
-    if (interfaceProtectedClasses.has(decl.enclosingClass)) continue;
-
-    // 5. Service discovery: class is in service file -> whole class protected
-    if (serviceProtectedClasses.has(decl.enclosingClass)) continue;
-    // Also protect the class declaration itself
-    if (decl.declCategory === 'class' && serviceNames.has(decl.name)) continue;
-
-    // 6. Override handling
+    // 4. Override handling
     if (decl.isOverride) {
       // Check if any OTHER declaration has the same name (internal override)
       const isInternalOverride = allDeclarations.some(
@@ -1021,7 +1198,7 @@ export function detectPublicDeadCodeInFiles(
       // keepExternalOverrides = false -> fall through to dead
     }
 
-    // 7. Abstract method: if abstract and a concrete impl exists elsewhere
+    // 5. Abstract method: if abstract and a concrete impl exists elsewhere
     if (decl.isAbstract) {
       const hasConcreteImpl = allDeclarations.some(
         d => d !== decl && d.name === decl.name && !d.isAbstract
@@ -1029,13 +1206,9 @@ export function detectPublicDeadCodeInFiles(
       if (hasConcreteImpl) continue;
     }
 
-    // 8. Concrete implementation of an abstract method -> alive even without @Override
-    //    (valid Java: missing @Override annotation, or Kotlin without explicit override keyword)
+    // 6. Concrete implementation of an abstract method -> alive even without @Override
     //    If an abstract declaration with the same name exists in any analyzed file, this
     //    concrete method is its implementation and is kept alive.
-    //    Note: step 6 already handles the case where isOverride is set.
-    // Check concrete override even without isOverride flag set
-    // If there's an abstract declaration with same name, this concrete decl is its impl
     if (!decl.isAbstract && !decl.isOverride) {
       const hasAbstractCounterpart = allDeclarations.some(
         d => d !== decl && d.name === decl.name && d.isAbstract

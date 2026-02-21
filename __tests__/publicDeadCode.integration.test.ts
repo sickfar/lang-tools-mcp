@@ -79,7 +79,7 @@ describe('Integration: detect_public_dead_code_java', () => {
     const dir = path.join(JAVA_FIXTURE_ROOT, 'external_override');
     const { resolved } = resolveFilePaths([dir], '.java');
     const strictRules = resolveProfiles(['strict'], {
-      customProfiles: { strict: { keepExternalOverrides: false, rules: [] } }
+      profiles: [{ name: 'strict', keepExternalOverrides: false, entrypoints: [] }]
     });
     const result = detectPublicDeadCodeInFiles(resolved, 'java', strictRules, [dir], ['strict']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));

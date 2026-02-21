@@ -25,7 +25,6 @@ describe('loadConfig', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lang-tools-test-'));
-    // Snapshot relevant env vars
     savedEnv = {
       LANG_TOOLS_CONFIG: process.env.LANG_TOOLS_CONFIG,
       XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
@@ -35,7 +34,6 @@ describe('loadConfig', () => {
   });
 
   afterEach(() => {
-    // Restore env vars
     for (const [k, v] of Object.entries(savedEnv)) {
       if (v === undefined) {
         delete process.env[k];
@@ -43,7 +41,6 @@ describe('loadConfig', () => {
         process.env[k] = v;
       }
     }
-    // Clean up temp dir
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -82,7 +79,6 @@ describe('loadConfig', () => {
 
   test('returns empty config when XDG config file does not exist', () => {
     process.env.XDG_CONFIG_HOME = tmpDir;
-    // No config file created
 
     const config = loadConfig();
     expect(config).toEqual({});
@@ -122,72 +118,148 @@ describe('resolveProfiles', () => {
   test('no active profiles returns empty ResolvedRules with keepExternalOverrides: true', () => {
     const result = resolveProfiles([], emptyConfig);
     expect(result.keepExternalOverrides).toBe(true);
-    expect(result.annotationNames.size).toBe(0);
-    expect(result.namePatterns.length).toBe(0);
-    expect(result.interfaceNames.size).toBe(0);
-    expect(result.serviceDiscovery).toBe(false);
+    expect(result.entrypoints).toEqual([]);
   });
 
-  test('spring profile includes expected annotation names', () => {
+  test('spring profile has entrypoints', () => {
     const result = resolveProfiles(['spring'], emptyConfig);
-    expect(result.annotationNames.has('Service')).toBe(true);
-    expect(result.annotationNames.has('Component')).toBe(true);
-    expect(result.annotationNames.has('Bean')).toBe(true);
-    expect(result.annotationNames.has('Autowired')).toBe(true);
-    expect(result.annotationNames.has('GetMapping')).toBe(true);
-    expect(result.annotationNames.has('RestController')).toBe(true);
-    expect(result.annotationNames.has('Configuration')).toBe(true);
-    expect(result.annotationNames.has('Repository')).toBe(true);
+    expect(result.entrypoints.length).toBeGreaterThan(0);
   });
 
-  test('junit5 profile includes expected annotation names', () => {
-    const result = resolveProfiles(['junit5'], emptyConfig);
-    expect(result.annotationNames.has('Test')).toBe(true);
-    expect(result.annotationNames.has('BeforeEach')).toBe(true);
-    expect(result.annotationNames.has('AfterEach')).toBe(true);
-    expect(result.annotationNames.has('ParameterizedTest')).toBe(true);
+  test('spring profile has compound entrypoint with annotatedBy + implementsInterfaceFromPackage', () => {
+    const result = resolveProfiles(['spring'], emptyConfig);
+    const compound = result.entrypoints.find(ep =>
+      ep.conditions.some(c => c.type === 'annotatedBy' && 'fqn' in c && c.fqn === 'org.springframework.stereotype.Component') &&
+      ep.conditions.some(c => c.type === 'implementsInterfaceFromPackage')
+    );
+    expect(compound).toBeDefined();
+    expect(compound!.conditions.length).toBe(2);
   });
 
-  test('android profile includes namePatterns matching lifecycle methods', () => {
-    const result = resolveProfiles(['android'], emptyConfig);
-    const matchNames = (name: string) => result.namePatterns.some(r => r.test(name));
-    expect(matchNames('onCreate')).toBe(true);
-    expect(matchNames('onDestroy')).toBe(true);
-    expect(matchNames('onResume')).toBe(true);
-    expect(matchNames('onPause')).toBe(true);
+  test('spring profile has single-condition @Bean entrypoint', () => {
+    const result = resolveProfiles(['spring'], emptyConfig);
+    const beanEp = result.entrypoints.find(ep =>
+      ep.conditions.length === 1 &&
+      ep.conditions[0].type === 'annotatedBy' &&
+      'fqn' in ep.conditions[0] &&
+      ep.conditions[0].fqn === 'org.springframework.context.annotation.Bean'
+    );
+    expect(beanEp).toBeDefined();
   });
 
-  test('spring + junit5 merged — both annotation sets combined', () => {
-    const result = resolveProfiles(['spring', 'junit5'], emptyConfig);
-    expect(result.annotationNames.has('Service')).toBe(true);
-    expect(result.annotationNames.has('Test')).toBe(true);
-    expect(result.annotationNames.has('BeforeEach')).toBe(true);
-    expect(result.annotationNames.has('Bean')).toBe(true);
-  });
-
-  test('custom profile from config is accessible', () => {
+  test('annotatedBy condition compiles to { type, fqn }', () => {
     const config: LangToolsConfig = {
-      customProfiles: {
-        myProfile: {
-          rules: [{ type: 'annotation', annotations: ['MyAnnotation'] }],
-        },
-      },
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'my annotation', rules: [{ annotatedBy: 'com.example.MyAnnotation' }] }],
+      }],
     };
     const result = resolveProfiles(['myProfile'], config);
-    expect(result.annotationNames.has('MyAnnotation')).toBe(true);
+    expect(result.entrypoints[0].conditions[0]).toEqual({ type: 'annotatedBy', fqn: 'com.example.MyAnnotation' });
+  });
+
+  test('namePattern condition compiles to { type, regex }', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'get* pattern', rules: [{ namePattern: 'get*' }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    const cond = result.entrypoints[0].conditions[0];
+    expect(cond.type).toBe('namePattern');
+    expect('regex' in cond && cond.regex.test('getName')).toBe(true);
+    expect('regex' in cond && cond.regex.test('fetchData')).toBe(false);
+  });
+
+  test('implementsInterfaceFromPackage compiles to { type, pattern }', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'spring if', rules: [{ implementsInterfaceFromPackage: 'org.springframework.*' }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    const cond = result.entrypoints[0].conditions[0];
+    expect(cond.type).toBe('implementsInterfaceFromPackage');
+    expect('pattern' in cond && cond.pattern.test('org.springframework.boot.Runner')).toBe(true);
+    expect('pattern' in cond && cond.pattern.test('com.example.Foo')).toBe(false);
+  });
+
+  test('interfaces condition compiles to { type, name }', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'Serializable', rules: [{ interfaces: 'Serializable' }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    expect(result.entrypoints[0].conditions[0]).toEqual({ type: 'interfaces', name: 'Serializable' });
+  });
+
+  test('serviceDiscovery condition compiles to { type: "serviceDiscovery" }', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'service discovery', rules: [{ serviceDiscovery: true }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    expect(result.entrypoints[0].conditions[0]).toEqual({ type: 'serviceDiscovery' });
+  });
+
+  test('android profile has entrypoints matching lifecycle methods via namePattern', () => {
+    const result = resolveProfiles(['android'], emptyConfig);
+    const matchName = (name: string) => result.entrypoints.some(ep =>
+      ep.conditions.some(c => c.type === 'namePattern' && 'regex' in c && c.regex.test(name))
+    );
+    expect(matchName('onCreate')).toBe(true);
+    expect(matchName('onDestroy')).toBe(true);
+    expect(matchName('onResume')).toBe(true);
+    expect(matchName('onPause')).toBe(true);
+  });
+
+  test('junit5 profile has @Test, @BeforeEach, @AfterEach entrypoints', () => {
+    const result = resolveProfiles(['junit5'], emptyConfig);
+    const hasAnnotation = (fqn: string) => result.entrypoints.some(ep =>
+      ep.conditions.some(c => c.type === 'annotatedBy' && 'fqn' in c && c.fqn === fqn)
+    );
+    expect(hasAnnotation('org.junit.jupiter.api.Test')).toBe(true);
+    expect(hasAnnotation('org.junit.jupiter.api.BeforeEach')).toBe(true);
+    expect(hasAnnotation('org.junit.jupiter.api.AfterEach')).toBe(true);
+    expect(hasAnnotation('org.junit.jupiter.params.ParameterizedTest')).toBe(true);
+  });
+
+  test('spring + android merged - entrypoints combined from both profiles', () => {
+    const result = resolveProfiles(['spring', 'android'], emptyConfig);
+    const hasAnnotationType = result.entrypoints.some(ep => ep.conditions.some(c => c.type === 'annotatedBy'));
+    const hasNamePatternType = result.entrypoints.some(ep => ep.conditions.some(c => c.type === 'namePattern'));
+    expect(hasAnnotationType).toBe(true);
+    expect(hasNamePatternType).toBe(true);
+  });
+
+  test('user profile from config profiles array is accessible', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'my annotation', rules: [{ annotatedBy: 'com.example.MyAnnotation' }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    expect(result.entrypoints.length).toBe(1);
+    expect(result.entrypoints[0].conditions[0]).toMatchObject({ type: 'annotatedBy', fqn: 'com.example.MyAnnotation' });
   });
 
   test('unknown profile name throws with message including the unknown name', () => {
     expect(() => resolveProfiles(['unknownProfile'], emptyConfig)).toThrow(/unknownProfile/);
   });
 
-  test('keepExternalOverrides not set in profile defaults to true', () => {
+  test('keepExternalOverrides not set defaults to true', () => {
     const config: LangToolsConfig = {
-      customProfiles: {
-        myProfile: {
-          rules: [{ type: 'annotation', annotations: ['MyAnnotation'] }],
-        },
-      },
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'my annotation', rules: [{ annotatedBy: 'com.example.MyAnnotation' }] }],
+      }],
     };
     const result = resolveProfiles(['myProfile'], config);
     expect(result.keepExternalOverrides).toBe(true);
@@ -195,75 +267,71 @@ describe('resolveProfiles', () => {
 
   test('keepExternalOverrides: false in profile returns false', () => {
     const config: LangToolsConfig = {
-      customProfiles: {
-        strictProfile: {
-          keepExternalOverrides: false,
-          rules: [{ type: 'annotation', annotations: ['MyAnnotation'] }],
-        },
-      },
+      profiles: [{ name: 'strict', keepExternalOverrides: false, entrypoints: [] }],
     };
-    const result = resolveProfiles(['strictProfile'], config);
+    const result = resolveProfiles(['strict'], config);
     expect(result.keepExternalOverrides).toBe(false);
   });
 
   test('keepExternalOverrides: false in ANY profile causes result to be false', () => {
     const config: LangToolsConfig = {
-      customProfiles: {
-        strictProfile: {
-          keepExternalOverrides: false,
-          rules: [{ type: 'annotation', annotations: ['MyAnnotation'] }],
-        },
-        permissiveProfile: {
-          keepExternalOverrides: true,
-          rules: [{ type: 'annotation', annotations: ['OtherAnnotation'] }],
-        },
-      },
+      profiles: [
+        { name: 'strict', keepExternalOverrides: false, entrypoints: [] },
+        { name: 'permissive', keepExternalOverrides: true, entrypoints: [] },
+      ],
     };
-    const result = resolveProfiles(['strictProfile', 'permissiveProfile'], config);
+    const result = resolveProfiles(['strict', 'permissive'], config);
     expect(result.keepExternalOverrides).toBe(false);
   });
 
-  test('annotations with @ prefix are normalized (@ stripped)', () => {
-    const config: LangToolsConfig = {
-      customProfiles: {
-        myProfile: {
-          rules: [{ type: 'annotation', annotations: ['@MyAnnotation', '@AnotherAnnotation'] }],
-        },
-      },
-    };
-    const result = resolveProfiles(['myProfile'], config);
-    expect(result.annotationNames.has('MyAnnotation')).toBe(true);
-    expect(result.annotationNames.has('AnotherAnnotation')).toBe(true);
-    expect(result.annotationNames.has('@MyAnnotation')).toBe(false);
-  });
-
-  test('serviceDiscovery rule sets serviceDiscovery: true', () => {
-    const config: LangToolsConfig = {
-      customProfiles: {
-        myProfile: {
-          rules: [{ type: 'serviceDiscovery' }],
-        },
-      },
-    };
-    const result = resolveProfiles(['myProfile'], config);
-    expect(result.serviceDiscovery).toBe(true);
-  });
-
-  test('annotation rule with empty annotations throws error mentioning "empty"', () => {
-    const config: LangToolsConfig = {
-      customProfiles: {
-        badProfile: {
-          rules: [{ type: 'annotation', annotations: [] }],
-        },
-      },
-    };
-    expect(() => resolveProfiles(['badProfile'], config)).toThrow(/empty/i);
-  });
-
-  test('built-in profiles spring, junit5, android are always available without custom config', () => {
+  test('built-in profiles spring, junit5, android are always available without user config', () => {
     expect(() => resolveProfiles(['spring'], emptyConfig)).not.toThrow();
     expect(() => resolveProfiles(['junit5'], emptyConfig)).not.toThrow();
     expect(() => resolveProfiles(['android'], emptyConfig)).not.toThrow();
+  });
+
+  test('entrypoint with empty name throws a descriptive error', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'badProfile',
+        entrypoints: [{ name: '', rules: [{ annotatedBy: 'com.example.X' }] }],
+      }],
+    };
+    expect(() => resolveProfiles(['badProfile'], config)).toThrow(/badProfile/);
+  });
+
+  test('multiple entrypoints in one profile are all flattened', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'multi',
+        entrypoints: [
+          { name: 'first', rules: [{ annotatedBy: 'com.example.First' }] },
+          { name: 'second', rules: [{ annotatedBy: 'com.example.Second' }] },
+          { name: 'third', rules: [{ interfaces: 'Runnable' }] },
+        ],
+      }],
+    };
+    const result = resolveProfiles(['multi'], config);
+    expect(result.entrypoints.length).toBe(3);
+  });
+
+  test('compound entrypoint: all conditions are AND-resolved', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'compound',
+        entrypoints: [{
+          name: 'compound rule',
+          rules: [
+            { annotatedBy: 'com.example.MyAnnotation' },
+            { implementsInterfaceFromPackage: 'com.example.*' },
+          ],
+        }],
+      }],
+    };
+    const result = resolveProfiles(['compound'], config);
+    expect(result.entrypoints[0].conditions.length).toBe(2);
+    expect(result.entrypoints[0].conditions[0].type).toBe('annotatedBy');
+    expect(result.entrypoints[0].conditions[1].type).toBe('implementsInterfaceFromPackage');
   });
 });
 
@@ -301,5 +369,12 @@ describe('globToRegex', () => {
     const regex = globToRegex('get(Name)');
     expect(regex.test('get(Name)')).toBe(true);
     expect(regex.test('getName')).toBe(false);
+  });
+
+  test('package glob: org.springframework.* matches org.springframework.X and subpackages', () => {
+    const regex = globToRegex('org.springframework.*');
+    expect(regex.test('org.springframework.Boot')).toBe(true);
+    expect(regex.test('org.springframework.data.Repository')).toBe(true);
+    expect(regex.test('com.example.Foo')).toBe(false);
   });
 });
