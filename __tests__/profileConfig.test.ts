@@ -300,6 +300,17 @@ describe('resolveProfiles', () => {
     expect(() => resolveProfiles(['badProfile'], config)).toThrow(/badProfile/);
   });
 
+  test('entrypoint with empty rules array throws a descriptive error', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'emptyRules',
+        entrypoints: [{ name: 'catch-all', rules: [] }],
+      }],
+    };
+    expect(() => resolveProfiles(['emptyRules'], config)).toThrow(/emptyRules/);
+    expect(() => resolveProfiles(['emptyRules'], config)).toThrow(/catch-all/);
+  });
+
   test('multiple entrypoints in one profile are all flattened', () => {
     const config: LangToolsConfig = {
       profiles: [{

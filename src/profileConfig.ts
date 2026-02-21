@@ -236,11 +236,17 @@ export function mergeActiveProfiles(
  * Returns true when `importFQN` (from the file's import list) covers `annotationFQN`.
  * Supports exact imports and wildcard imports.
  *
+ * NOTE: Wildcard imports (e.g. `org.springframework.*`) are treated as recursive prefix
+ * matches covering all sub-packages, NOT just the direct package members as Java/Kotlin
+ * actually resolves them. This is a deliberate conservative approximation that avoids
+ * false positives (incorrectly marking live code as dead) at the cost of potential
+ * false negatives (missing dead code where a broad wildcard happens to match).
+ *
  * Examples:
  *   annotationFQN = "org.springframework.stereotype.Component"
  *   importFQN = "org.springframework.stereotype.Component"   → exact match → true
  *   importFQN = "org.springframework.stereotype.*"           → package wildcard → true
- *   importFQN = "org.springframework.*"                      → broader wildcard → true
+ *   importFQN = "org.springframework.*"                      → broader wildcard → true (sub-package matched)
  *   importFQN = "org.springframework.beans.*"                → sibling wildcard → false
  */
 export function annotationMatchesImport(annotationFQN: string, importFQN: string): boolean {
@@ -315,6 +321,12 @@ function resolveCondition(cond: ConditionConfig): ResolvedCondition {
 function resolveEntrypoint(ep: EntrypointConfig, profileName: string): ResolvedEntrypoint {
   if (!ep.name) {
     throw new Error(`Profile "${profileName}" has an entrypoint with missing or empty name.`);
+  }
+  if (ep.rules.length === 0) {
+    throw new Error(
+      `Profile "${profileName}", entrypoint "${ep.name}" has an empty rules array. ` +
+      `An entrypoint must have at least one condition.`
+    );
   }
   return {
     name: ep.name,

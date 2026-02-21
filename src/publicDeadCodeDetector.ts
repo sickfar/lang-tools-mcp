@@ -155,11 +155,19 @@ export function extractFilePackageKotlin(rootNode: Parser.SyntaxNode, sourceCode
  */
 export function extractFileImportsKotlin(rootNode: Parser.SyntaxNode, sourceCode: string): string[] {
   const imports: string[] = [];
-  // Use descendantsOfType to handle both 'import' and 'import_header' variants
-  const importNodes = [
+  // Use descendantsOfType to handle both 'import' and 'import_header' variants.
+  // Deduplicate by startIndex to avoid processing the same node twice if both queries match.
+  const seenStarts = new Set<number>();
+  const importNodes: Parser.SyntaxNode[] = [];
+  for (const n of [
     ...rootNode.descendantsOfType('import').filter(n => n.childCount > 0),
     ...rootNode.descendantsOfType('import_header').filter(n => n.childCount > 0),
-  ];
+  ]) {
+    if (!seenStarts.has(n.startIndex)) {
+      seenStarts.add(n.startIndex);
+      importNodes.push(n);
+    }
+  }
   for (const importNode of importNodes) {
     let text = sourceCode.substring(importNode.startIndex, importNode.endIndex);
     // Trim to first newline (node may include trailing whitespace/comments)
@@ -1159,11 +1167,12 @@ export function detectPublicDeadCodeInFiles(
 
   // Build class-level cascade: class declarations that match any entrypoint protect all
   // their members (methods, fields) transitively.
+  // Key is "filePath#className" to prevent cross-file name collisions.
   const classProtectedByEntrypoint = new Set<string>();
   for (const decl of allDeclarations) {
     if (decl.declCategory !== 'class') continue;
     if (isAliveByAnyEntrypoint(decl, resolvedRules, serviceNames)) {
-      classProtectedByEntrypoint.add(decl.name);
+      classProtectedByEntrypoint.add(decl.file + '#' + decl.name);
     }
   }
 
@@ -1181,7 +1190,7 @@ export function detectPublicDeadCodeInFiles(
     if (globalUsedNames.has(decl.name)) continue;
 
     // 2. Class cascade: enclosing class protected by entrypoint -> member alive
-    if (classProtectedByEntrypoint.has(decl.enclosingClass)) continue;
+    if (classProtectedByEntrypoint.has(decl.file + '#' + decl.enclosingClass)) continue;
 
     // 3. Declaration directly matched by any entrypoint -> alive
     if (isAliveByAnyEntrypoint(decl, resolvedRules, serviceNames)) continue;
