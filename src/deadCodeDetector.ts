@@ -127,7 +127,7 @@ function getMethodName(methodNode: Parser.SyntaxNode, sourceCode: string, config
   return '<unknown>';
 }
 
-function hasAnnotation(methodNode: Parser.SyntaxNode, annotationName: string, sourceCode: string, config: LanguageConfig): boolean {
+export function hasAnnotation(methodNode: Parser.SyntaxNode, annotationName: string, sourceCode: string, config: LanguageConfig): boolean {
   if (config.language === 'java') {
     // In Java, annotations are in a 'modifiers' node before the method
     for (let i = 0; i < methodNode.childCount; i++) {
@@ -192,7 +192,7 @@ function getMethodBody(methodNode: Parser.SyntaxNode, config: LanguageConfig): P
   return null;
 }
 
-function collectIdentifiers(node: Parser.SyntaxNode, sourceCode: string, config: LanguageConfig): Set<string> {
+export function collectIdentifiers(node: Parser.SyntaxNode, sourceCode: string, config: LanguageConfig): Set<string> {
   const ids = new Set<string>();
   for (const idType of config.identifierTypes) {
     const nodes = node.descendantsOfType(idType);
@@ -593,7 +593,7 @@ function hasDelegation(fieldNode: Parser.SyntaxNode): boolean {
 // 'override' as a substring (e.g. @someOverride). This produces false negatives
 // (missed dead code) rather than false positives — the safer direction for this tool.
 // Consistent with isDataClass() and isPrivateField() patterns in this file.
-function hasOverrideModifier(node: Parser.SyntaxNode, sourceCode: string): boolean {
+export function hasOverrideModifier(node: Parser.SyntaxNode, sourceCode: string): boolean {
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = node.namedChild(i)!;
     if (child.type === 'modifiers') {
@@ -611,7 +611,7 @@ function hasOverrideModifier(node: Parser.SyntaxNode, sourceCode: string): boole
  * Only the `${expr}` form creates an interpolation → identifier AST node (handled via
  * descendantsOfType). This function fills the gap for the `$name` form via regex.
  */
-function extractKotlinStringTemplateIds(node: Parser.SyntaxNode, sourceCode: string): Set<string> {
+export function extractKotlinStringTemplateIds(node: Parser.SyntaxNode, sourceCode: string): Set<string> {
   const ids = new Set<string>();
   for (const strNode of node.descendantsOfType(['string_literal', 'multiline_string_literal'])) {
     const text = getSourceText(strNode, sourceCode);

@@ -2,10 +2,11 @@ export default {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
-  // Limit to 1 worker with low memory to force fresh workers per test file.
-  // tree-sitter native bindings corrupt when multiple test suites reuse the same
-  // worker process — parsed trees lose their rootNode after GC.
-  workerIdleMemoryLimit: '100MB',
+  // Run serially with low memory limit so the single worker is killed and
+  // restarted between suites. tree-sitter native bindings corrupt when
+  // multiple suites share a worker process — parsed trees lose rootNode after GC.
+  maxWorkers: 1,
+  workerIdleMemoryLimit: '50MB',
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },

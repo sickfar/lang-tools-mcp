@@ -5,6 +5,7 @@
  * Uses tree-sitter to parse and analyze code, removing only specific unused imports.
  */
 
+import * as path from "path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -14,6 +15,8 @@ import {
 import { cleanupJavaFile, cleanupKotlinFile } from "./importCleaner.js";
 import { detectDeadCodeInFile } from "./deadCodeDetector.js";
 import { resolveFilePaths } from "./resolveFilePaths.js";
+import { loadConfig, mergeActiveProfiles, resolveProfiles } from "./profileConfig.js";
+import { detectPublicDeadCodeInFiles } from "./publicDeadCodeDetector.js";
 
 /**
  * Create the MCP server
@@ -99,6 +102,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 type: "string"
               },
               description: "Array of Kotlin file paths or directories to analyze. Directories are scanned recursively for .kt files."
+            }
+          },
+          required: ["paths"]
+        }
+      },
+      {
+        name: "detect_public_dead_code_java",
+        description: "Detect unused public/protected members across Java source roots using cross-file analysis. Supports profile rules (spring, junit5, android) to protect framework entrypoints. Detection only — does not modify files. Note: analysis is name-based (no type resolution), so members with common names shared by multiple unrelated classes may produce false negatives.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            paths: {
+              type: "array",
+              items: { type: "string" },
+              description: "Source root directories to scan recursively for .java files."
+            },
+            activeProfiles: {
+              type: "array",
+              items: { type: "string" },
+              description: "Active profile names (e.g. 'spring', 'junit5'). Replaces config file activeProfiles when provided."
+            }
+          },
+          required: ["paths"]
+        }
+      },
+      {
+        name: "detect_public_dead_code_kotlin",
+        description: "Detect unused public/protected/internal members across Kotlin source roots using cross-file analysis. Supports profile rules (spring, junit5, android) to protect framework entrypoints. Detection only — does not modify files. Note: analysis is name-based (no type resolution), so members with common names shared by multiple unrelated classes may produce false negatives.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            paths: {
+              type: "array",
+              items: { type: "string" },
+              description: "Source root directories to scan recursively for .kt files."
+            },
+            activeProfiles: {
+              type: "array",
+              items: { type: "string" },
+              description: "Active profile names (e.g. 'spring', 'android'). Replaces config file activeProfiles when provided."
             }
           },
           required: ["paths"]
@@ -231,6 +274,60 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [{
           type: "text",
           text: JSON.stringify(response, null, 2)
+        }]
+      };
+    }
+
+    case "detect_public_dead_code_java":
+    case "detect_public_dead_code_kotlin": {
+      const language = request.params.name === "detect_public_dead_code_java" ? "java" : "kotlin";
+      const extension = language === "java" ? ".java" : ".kt";
+      const paths = request.params.arguments?.paths as string[];
+      const toolActiveProfiles = request.params.arguments?.activeProfiles as string[] | undefined;
+
+      if (!paths || !Array.isArray(paths)) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ status: "NOK", error: "Invalid paths parameter" })
+          }]
+        };
+      }
+
+      const config = loadConfig();
+      const activeProfileNames = mergeActiveProfiles(config, toolActiveProfiles);
+      const resolvedRules = resolveProfiles(activeProfileNames, config);
+
+      const { resolved, errors: resolveErrors } = resolveFilePaths(paths, extension);
+
+      const absoluteSourceRoots = paths.map(p =>
+        path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
+      );
+
+      const result = detectPublicDeadCodeInFiles(
+        resolved,
+        language,
+        resolvedRules,
+        absoluteSourceRoots,
+        activeProfileNames,
+      );
+
+      // Prepend resolve errors as file-level errors.
+      // Note: filesAnalyzed counts only successfully parsed files; files.length
+      // may be larger when resolve errors are present (known, documented discrepancy).
+      if (resolveErrors.length > 0) {
+        const errorEntries = resolveErrors.map(e => ({
+          file: e.path,
+          findings: [],
+          error: e.message,
+        }));
+        result.files.unshift(...errorEntries);
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify(result, null, 2)
         }]
       };
     }
