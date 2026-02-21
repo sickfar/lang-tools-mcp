@@ -87,6 +87,14 @@ export const KOTLIN_CONFIG: LanguageConfig = {
 
 // --- Helpers ---
 
+/** Compare two tree-sitter nodes by position rather than object identity.
+ *  tree-sitter's Node.js bindings may return different JavaScript wrapper objects
+ *  for the same underlying C tree node depending on cache state, making `===`
+ *  non-deterministic. Position comparison is always reliable within one tree. */
+function sameNode(a: Parser.SyntaxNode, b: Parser.SyntaxNode): boolean {
+  return a.startIndex === b.startIndex && a.endIndex === b.endIndex;
+}
+
 function getSourceText(node: Parser.SyntaxNode, sourceCode: string): string {
   return sourceCode.substring(node.startIndex, node.endIndex);
 }
@@ -214,9 +222,9 @@ export function collectIdentifiers(node: Parser.SyntaxNode, sourceCode: string, 
 function isInSameClassScope(idNode: Parser.SyntaxNode, targetClassBody: Parser.SyntaxNode, config: LanguageConfig): boolean {
   let current = idNode.parent;
   while (current) {
-    if (current === targetClassBody) return true;
+    if (sameNode(current, targetClassBody)) return true;
     // If we hit another class body before reaching target, check if it's a companion object
-    if (current.type === config.classBodyType && current !== targetClassBody) {
+    if (current.type === config.classBodyType && !sameNode(current, targetClassBody)) {
       // For Kotlin: anonymous object literals capture the enclosing scope, so their
       // class_body is transparent for scope traversal.
       if (config.language === 'kotlin' && current.parent?.type === 'object_literal') {
@@ -229,7 +237,7 @@ function isInSameClassScope(idNode: Parser.SyntaxNode, targetClassBody: Parser.S
         // (identifier in companion, target is companion)
         if (current.parent?.type === 'companion_object') {
           const companionNode = current.parent;
-          if (companionNode.parent === targetClassBody) {
+          if (companionNode.parent && sameNode(companionNode.parent, targetClassBody)) {
             // Continue walking up - companion boundary is transparent
             current = current.parent;
             continue;
@@ -239,7 +247,7 @@ function isInSameClassScope(idNode: Parser.SyntaxNode, targetClassBody: Parser.S
         // (identifier in parent class, target is companion)
         if (targetClassBody.parent?.type === 'companion_object') {
           const targetCompanionNode = targetClassBody.parent;
-          if (targetCompanionNode.parent === current) {
+          if (targetCompanionNode.parent && sameNode(targetCompanionNode.parent, current)) {
             // Identifier in parent class, target is companion - they share scope
             return true;
           }
@@ -512,7 +520,7 @@ export function detectUnusedLocalVariables(
       // Skip identifiers that are part of the variable declaration itself
       let parent = idNode.parent;
       while (parent) {
-        if (parent === varNode) return false;
+        if (sameNode(parent, varNode)) return false;
         parent = parent.parent;
       }
       return true;
@@ -639,7 +647,7 @@ export function detectUnusedFields(
     const fieldNodes: Parser.SyntaxNode[] = [];
     for (const type of config.fieldDeclarationTypes) {
       for (const node of classBody.descendantsOfType(type)) {
-        if (node.parent === classBody) {
+        if (node.parent && sameNode(node.parent, classBody)) {
           fieldNodes.push(node);
         }
       }
@@ -678,7 +686,7 @@ export function detectUnusedFields(
         if (name !== fieldName) return false;
         let parent = idNode.parent;
         while (parent) {
-          if (parent === fieldNode) return false;
+          if (sameNode(parent, fieldNode)) return false;
           parent = parent.parent;
         }
         return true;
@@ -779,7 +787,7 @@ export function detectUnusedPrivateMethods(
     const methodNodes: Parser.SyntaxNode[] = [];
     for (const type of config.methodDeclarationTypes) {
       for (const node of classBody.descendantsOfType(type)) {
-        if (node.parent === classBody && isPrivateMethod(node, sourceCode, config)) {
+        if (node.parent && sameNode(node.parent, classBody) && isPrivateMethod(node, sourceCode, config)) {
           methodNodes.push(node);
         }
       }
