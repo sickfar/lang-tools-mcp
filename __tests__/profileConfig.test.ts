@@ -186,15 +186,54 @@ describe('resolveProfiles', () => {
     expect('pattern' in cond && cond.pattern.test('com.example.Foo')).toBe(false);
   });
 
-  test('interfaces condition compiles to { type, name }', () => {
+  test('implementsInterface compiles to { type, pattern } with pre-compiled regex', () => {
     const config: LangToolsConfig = {
       profiles: [{
         name: 'myProfile',
-        entrypoints: [{ name: 'Serializable', rules: [{ interfaces: 'Serializable' }] }],
+        entrypoints: [{ name: 'implements specific interface', rules: [{ implementsInterface: 'java.io.Serializable' }] }],
       }],
     };
     const result = resolveProfiles(['myProfile'], config);
-    expect(result.entrypoints[0].conditions[0]).toEqual({ type: 'interfaces', name: 'Serializable' });
+    const cond = result.entrypoints[0].conditions[0];
+    expect(cond.type).toBe('implementsInterface');
+    if (cond.type === 'implementsInterface') {
+      expect(cond.pattern.test('java.io.Serializable')).toBe(true);
+      expect(cond.pattern.test('java.io.Externalizable')).toBe(false);
+      expect(cond.pattern.test('com.example.Serializable')).toBe(false);
+    }
+  });
+
+  test('extendsClass compiles to { type, pattern } with pre-compiled regex', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'extends class', rules: [{ extendsClass: 'com.acme.framework.BaseController' }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    const cond = result.entrypoints[0].conditions[0];
+    expect(cond.type).toBe('extendsClass');
+    if (cond.type === 'extendsClass') {
+      expect(cond.pattern.test('com.acme.framework.BaseController')).toBe(true);
+      expect(cond.pattern.test('com.acme.other.BaseController')).toBe(false);
+      expect(cond.pattern.test('com.acme.framework.BaseControllerExtended')).toBe(false);
+    }
+  });
+
+  test('extendsClassFromPackage compiles to { type, pattern }', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'extends class from pkg', rules: [{ extendsClassFromPackage: 'com.example.*' }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    const cond = result.entrypoints[0].conditions[0];
+    expect(cond.type).toBe('extendsClassFromPackage');
+    if (cond.type === 'extendsClassFromPackage') {
+      expect(cond.pattern.test('com.example.Foo')).toBe(true);
+      expect(cond.pattern.test('org.other.Foo')).toBe(false);
+    }
   });
 
   test('serviceDiscovery condition compiles to { type: "serviceDiscovery" }', () => {
@@ -290,6 +329,91 @@ describe('resolveProfiles', () => {
     expect(() => resolveProfiles(['android'], emptyConfig)).not.toThrow();
   });
 
+  test('spring profile has all expected entrypoints', () => {
+    const rules = resolveProfiles(['spring'], emptyConfig);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names).toContain('Spring component (infrastructure bean)');
+    expect(names).toContain('Spring service bean');
+    expect(names).toContain('Spring configuration class');
+    expect(names).toContain('Spring bean producer method');
+    expect(names).toContain('Spring web controller');
+    expect(names).toContain('Spring REST controller');
+    expect(names).toContain('Spring request mapping');
+    expect(names).toContain('Spring GET mapping');
+    expect(names).toContain('Spring POST mapping');
+    expect(names).toContain('Spring PUT mapping');
+    expect(names).toContain('Spring DELETE mapping');
+    expect(names).toContain('Spring PATCH mapping');
+    expect(names).toContain('Spring scheduled method');
+    expect(names).toContain('Spring event listener');
+    expect(names).toContain('Spring injection point');
+    expect(names).toContain('Spring value injection');
+    expect(names).toContain('Spring config properties');
+    expect(rules.entrypoints).toHaveLength(17);
+  });
+
+  test('junit5 profile has all expected entrypoints', () => {
+    const rules = resolveProfiles(['junit5'], emptyConfig);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names).toHaveLength(12);
+    expect(names).toContain('JUnit5 @Test');
+    expect(names).toContain('JUnit5 @BeforeEach');
+    expect(names).toContain('JUnit5 @AfterEach');
+    expect(names).toContain('JUnit5 @BeforeAll');
+    expect(names).toContain('JUnit5 @AfterAll');
+    expect(names).toContain('JUnit5 @ParameterizedTest');
+    expect(names).toContain('JUnit5 @Suite');
+    expect(names).toContain('JUnit5 @Nested');
+    expect(names).toContain('JUnit5 @TestFactory');
+    expect(names).toContain('JUnit5 @RepeatedTest');
+    expect(names).toContain('JUnit5 @ExtendWith');
+    expect(names).toContain('JUnit5 @Tag');
+  });
+
+  test('android profile has all lifecycle entrypoints', () => {
+    const rules = resolveProfiles(['android'], emptyConfig);
+    expect(rules.entrypoints).toHaveLength(21);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names.some(n => n.includes('onCreate'))).toBe(true);
+    expect(names.some(n => n.includes('onDestroy'))).toBe(true);
+    expect(names.some(n => n.includes('onResume'))).toBe(true);
+    expect(names.some(n => n.includes('onPause'))).toBe(true);
+    expect(names.some(n => n.includes('onBackPressed'))).toBe(true);
+  });
+
+  test('micronaut profile has 19 entrypoints', () => {
+    const rules = resolveProfiles(['micronaut'], emptyConfig);
+    expect(rules.entrypoints).toHaveLength(19);
+  });
+
+  test('jakarta profile has 19 entrypoints', () => {
+    const rules = resolveProfiles(['jakarta'], emptyConfig);
+    expect(rules.entrypoints).toHaveLength(19);
+  });
+
+  test('jakarta profile has expected entrypoints', () => {
+    const rules = resolveProfiles(['jakarta'], emptyConfig);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names).toContain('Jakarta Singleton bean');
+    expect(names).toContain('JAX-RS resource class or method');
+    expect(names).toContain('EJB Stateless session bean');
+    expect(names).toContain('JPA entity class');
+    expect(names).toContain('Jakarta CDI ApplicationScoped');
+  });
+
+  test('micronaut profile has expected entrypoints', () => {
+    const rules = resolveProfiles(['micronaut'], emptyConfig);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names).toContain('Micronaut singleton bean');
+    expect(names).toContain('Micronaut injection point');
+    expect(names).toContain('Micronaut HTTP controller');
+    expect(names).toContain('Micronaut GET endpoint');
+    expect(names).toContain('Micronaut factory class');
+    expect(names).toContain('Micronaut scheduled task');
+    expect(names).toContain('Micronaut event listener');
+    expect(names).toContain('Micronaut WebSocket server');
+  });
+
   test('entrypoint with empty name throws a descriptive error', () => {
     const config: LangToolsConfig = {
       profiles: [{
@@ -318,7 +442,7 @@ describe('resolveProfiles', () => {
         entrypoints: [
           { name: 'first', rules: [{ annotatedBy: 'com.example.First' }] },
           { name: 'second', rules: [{ annotatedBy: 'com.example.Second' }] },
-          { name: 'third', rules: [{ interfaces: 'Runnable' }] },
+          { name: 'third', rules: [{ namePattern: 'run*' }] },
         ],
       }],
     };

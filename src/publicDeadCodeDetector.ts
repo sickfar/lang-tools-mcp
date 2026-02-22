@@ -453,10 +453,9 @@ function isDataClassGeneratedMember(name: string): boolean {
 /**
  * Checks a single condition against a declaration using full import resolution.
  * - annotatedBy: simple name must match AND file must import the FQN (exact or wildcard)
- * - implementsInterfaceFromPackage / extendsFromPackage: interface resolved via file imports
+ * - implementsInterfaceFromPackage / extendsClassFromPackage: interface/superclass resolved via file imports
  * - overridesMethodFromInterface: isOverride AND interface from package
  * - namePattern / packagePattern: regex match against name / file package
- * - interfaces: simple name match against implementedInterfaces (no import resolution)
  * - serviceDiscovery: name found in META-INF/services
  */
 function matchesCondition(
@@ -475,7 +474,19 @@ function matchesCondition(
       return decl.implementedInterfaces.some(i =>
         interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
       );
-    case 'extendsFromPackage':
+    case 'implementsInterface':
+      // implementedInterfaces contains both implemented interfaces and superclass(es);
+      // the rule name is a semantic hint to users, not a structurally enforced distinction.
+      return decl.implementedInterfaces.some(i =>
+        interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
+      );
+    case 'extendsClass':
+      // implementedInterfaces contains both supertypes and interfaces (same field);
+      // the rule name is a semantic hint to users, not a structurally enforced distinction.
+      return decl.implementedInterfaces.some(i =>
+        interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
+      );
+    case 'extendsClassFromPackage':
       return decl.implementedInterfaces.some(i =>
         interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
       );
@@ -488,8 +499,6 @@ function matchesCondition(
       return cond.regex.test(decl.name);
     case 'packagePattern':
       return cond.regex.test(decl.filePackage);
-    case 'interfaces':
-      return decl.implementedInterfaces.includes(cond.name);
     case 'serviceDiscovery':
       return serviceNames.has(decl.name) || serviceNames.has(decl.enclosingClass);
   }

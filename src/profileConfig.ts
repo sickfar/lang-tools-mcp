@@ -7,11 +7,12 @@ import * as os from 'os';
 export type ConditionConfig =
   | { annotatedBy: string }
   | { implementsInterfaceFromPackage: string }
-  | { extendsFromPackage: string }
+  | { implementsInterface: string }
+  | { extendsClass: string }
+  | { extendsClassFromPackage: string }
   | { overridesMethodFromInterface: string }
   | { namePattern: string }
   | { packagePattern: string }
-  | { interfaces: string }
   | { serviceDiscovery: true };
 
 export interface EntrypointConfig {
@@ -35,11 +36,12 @@ export interface LangToolsConfig {
 export type ResolvedCondition =
   | { type: 'annotatedBy'; fqn: string }
   | { type: 'implementsInterfaceFromPackage'; pattern: RegExp }
-  | { type: 'extendsFromPackage'; pattern: RegExp }
+  | { type: 'implementsInterface'; pattern: RegExp }
+  | { type: 'extendsClass'; pattern: RegExp }
+  | { type: 'extendsClassFromPackage'; pattern: RegExp }
   | { type: 'overridesMethodFromInterface'; pattern: RegExp }
   | { type: 'namePattern'; regex: RegExp }
   | { type: 'packagePattern'; regex: RegExp }
-  | { type: 'interfaces'; name: string }
   | { type: 'serviceDiscovery' };
 
 export interface ResolvedEntrypoint {
@@ -130,6 +132,59 @@ const BUILT_IN_PROFILES: ProfileConfig[] = [
       { name: 'Android onCreateOptionsMenu',        rules: [{ namePattern: 'onCreateOptionsMenu' }] },
       { name: 'Android onRequestPermissionsResult', rules: [{ namePattern: 'onRequestPermissionsResult' }] },
       { name: 'Android onBackPressed',              rules: [{ namePattern: 'onBackPressed' }] },
+    ],
+  },
+  {
+    name: 'micronaut',
+    entrypoints: [
+      { name: 'Micronaut singleton bean',           rules: [{ annotatedBy: 'io.micronaut.context.annotation.Singleton' }] },
+      { name: 'Micronaut injection point',          rules: [{ annotatedBy: 'jakarta.inject.Inject' }] },
+      { name: 'Micronaut HTTP controller',          rules: [{ annotatedBy: 'io.micronaut.http.annotation.Controller' }] },
+      { name: 'Micronaut GET endpoint',             rules: [{ annotatedBy: 'io.micronaut.http.annotation.Get' }] },
+      { name: 'Micronaut POST endpoint',            rules: [{ annotatedBy: 'io.micronaut.http.annotation.Post' }] },
+      { name: 'Micronaut PUT endpoint',             rules: [{ annotatedBy: 'io.micronaut.http.annotation.Put' }] },
+      { name: 'Micronaut DELETE endpoint',          rules: [{ annotatedBy: 'io.micronaut.http.annotation.Delete' }] },
+      { name: 'Micronaut PATCH endpoint',           rules: [{ annotatedBy: 'io.micronaut.http.annotation.Patch' }] },
+      { name: 'Micronaut OPTIONS endpoint',         rules: [{ annotatedBy: 'io.micronaut.http.annotation.Options' }] },
+      { name: 'Micronaut HEAD endpoint',            rules: [{ annotatedBy: 'io.micronaut.http.annotation.Head' }] },
+      { name: 'Micronaut HTTP filter',              rules: [{ annotatedBy: 'io.micronaut.http.annotation.Filter' }] },
+      { name: 'Micronaut declarative HTTP client',  rules: [{ annotatedBy: 'io.micronaut.http.client.annotation.Client' }] },
+      { name: 'Micronaut factory class',            rules: [{ annotatedBy: 'io.micronaut.context.annotation.Factory' }] },
+      { name: 'Micronaut factory bean method',      rules: [{ annotatedBy: 'io.micronaut.context.annotation.Bean' }] },
+      { name: 'Micronaut scheduled task',           rules: [{ annotatedBy: 'io.micronaut.scheduling.annotation.Scheduled' }] },
+      { name: 'Micronaut event listener',           rules: [{ annotatedBy: 'io.micronaut.runtime.event.annotation.EventListener' }] },
+      { name: 'Micronaut configuration properties', rules: [{ annotatedBy: 'io.micronaut.context.annotation.ConfigurationProperties' }] },
+      { name: 'Micronaut WebSocket server',         rules: [{ annotatedBy: 'io.micronaut.websocket.annotation.ServerWebSocket' }] },
+      { name: 'Micronaut WebSocket client',         rules: [{ annotatedBy: 'io.micronaut.websocket.annotation.ClientWebSocket' }] },
+    ],
+  },
+  {
+    name: 'jakarta',
+    entrypoints: [
+      // DI
+      { name: 'Jakarta Singleton bean',            rules: [{ annotatedBy: 'jakarta.inject.Singleton' }] },
+      { name: 'Jakarta injection point',           rules: [{ annotatedBy: 'jakarta.inject.Inject' }] },
+      // CDI scopes
+      { name: 'Jakarta CDI ApplicationScoped',     rules: [{ annotatedBy: 'jakarta.enterprise.context.ApplicationScoped' }] },
+      { name: 'Jakarta CDI RequestScoped',         rules: [{ annotatedBy: 'jakarta.enterprise.context.RequestScoped' }] },
+      { name: 'Jakarta CDI SessionScoped',         rules: [{ annotatedBy: 'jakarta.enterprise.context.SessionScoped' }] },
+      { name: 'Jakarta CDI producer',              rules: [{ annotatedBy: 'jakarta.enterprise.inject.Produces' }] },
+      // JAX-RS
+      { name: 'JAX-RS resource class or method',   rules: [{ annotatedBy: 'jakarta.ws.rs.Path' }] },
+      { name: 'JAX-RS GET method',                 rules: [{ annotatedBy: 'jakarta.ws.rs.GET' }] },
+      { name: 'JAX-RS POST method',                rules: [{ annotatedBy: 'jakarta.ws.rs.POST' }] },
+      { name: 'JAX-RS PUT method',                 rules: [{ annotatedBy: 'jakarta.ws.rs.PUT' }] },
+      { name: 'JAX-RS DELETE method',              rules: [{ annotatedBy: 'jakarta.ws.rs.DELETE' }] },
+      { name: 'JAX-RS PATCH method',               rules: [{ annotatedBy: 'jakarta.ws.rs.PATCH' }] },
+      { name: 'JAX-RS HEAD method',                rules: [{ annotatedBy: 'jakarta.ws.rs.HEAD' }] },
+      { name: 'JAX-RS OPTIONS method',             rules: [{ annotatedBy: 'jakarta.ws.rs.OPTIONS' }] },
+      // EJB
+      { name: 'EJB Stateless session bean',        rules: [{ annotatedBy: 'jakarta.ejb.Stateless' }] },
+      { name: 'EJB Stateful session bean',         rules: [{ annotatedBy: 'jakarta.ejb.Stateful' }] },
+      { name: 'EJB Singleton',                     rules: [{ annotatedBy: 'jakarta.ejb.Singleton' }] },
+      { name: 'EJB scheduled method',              rules: [{ annotatedBy: 'jakarta.ejb.Schedule' }] },
+      // JPA
+      { name: 'JPA entity class',                  rules: [{ annotatedBy: 'jakarta.persistence.Entity' }] },
     ],
   },
 ];
@@ -292,8 +347,16 @@ function resolveCondition(cond: ConditionConfig): ResolvedCondition {
   if ('implementsInterfaceFromPackage' in cond) {
     return { type: 'implementsInterfaceFromPackage', pattern: globToRegex(cond.implementsInterfaceFromPackage) };
   }
-  if ('extendsFromPackage' in cond) {
-    return { type: 'extendsFromPackage', pattern: globToRegex(cond.extendsFromPackage) };
+  if ('implementsInterface' in cond) {
+    const escaped = cond.implementsInterface.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    return { type: 'implementsInterface', pattern: new RegExp(`^${escaped}$`) };
+  }
+  if ('extendsClass' in cond) {
+    const escaped = cond.extendsClass.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    return { type: 'extendsClass', pattern: new RegExp(`^${escaped}$`) };
+  }
+  if ('extendsClassFromPackage' in cond) {
+    return { type: 'extendsClassFromPackage', pattern: globToRegex(cond.extendsClassFromPackage) };
   }
   if ('overridesMethodFromInterface' in cond) {
     return { type: 'overridesMethodFromInterface', pattern: globToRegex(cond.overridesMethodFromInterface) };
@@ -303,9 +366,6 @@ function resolveCondition(cond: ConditionConfig): ResolvedCondition {
   }
   if ('packagePattern' in cond) {
     return { type: 'packagePattern', regex: globToRegex(cond.packagePattern) };
-  }
-  if ('interfaces' in cond) {
-    return { type: 'interfaces', name: cond.interfaces };
   }
   // serviceDiscovery: true
   return { type: 'serviceDiscovery' };
