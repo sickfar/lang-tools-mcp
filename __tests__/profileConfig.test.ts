@@ -325,6 +325,68 @@ describe('resolveProfiles', () => {
     expect(() => resolveProfiles(['android'], emptyConfig)).not.toThrow();
   });
 
+  test('spring profile has all expected entrypoints', () => {
+    const rules = resolveProfiles(['spring'], emptyConfig);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names).toContain('Spring component (infrastructure bean)');
+    expect(names).toContain('Spring service bean');
+    expect(names).toContain('Spring configuration class');
+    expect(names).toContain('Spring bean producer method');
+    expect(names).toContain('Spring web controller');
+    expect(names).toContain('Spring REST controller');
+    expect(names).toContain('Spring request mapping');
+    expect(names).toContain('Spring GET mapping');
+    expect(names).toContain('Spring POST mapping');
+    expect(names).toContain('Spring PUT mapping');
+    expect(names).toContain('Spring DELETE mapping');
+    expect(names).toContain('Spring PATCH mapping');
+    expect(names).toContain('Spring scheduled method');
+    expect(names).toContain('Spring event listener');
+    expect(names).toContain('Spring injection point');
+    expect(names).toContain('Spring value injection');
+    expect(names).toContain('Spring config properties');
+    expect(rules.entrypoints).toHaveLength(17);
+  });
+
+  test('junit5 profile has all expected entrypoints', () => {
+    const rules = resolveProfiles(['junit5'], emptyConfig);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names).toHaveLength(12);
+    expect(names).toContain('JUnit5 @Test');
+    expect(names).toContain('JUnit5 @BeforeEach');
+    expect(names).toContain('JUnit5 @AfterEach');
+    expect(names).toContain('JUnit5 @BeforeAll');
+    expect(names).toContain('JUnit5 @AfterAll');
+    expect(names).toContain('JUnit5 @ParameterizedTest');
+    expect(names).toContain('JUnit5 @Suite');
+    expect(names).toContain('JUnit5 @Nested');
+    expect(names).toContain('JUnit5 @TestFactory');
+    expect(names).toContain('JUnit5 @RepeatedTest');
+    expect(names).toContain('JUnit5 @ExtendWith');
+    expect(names).toContain('JUnit5 @Tag');
+  });
+
+  test('android profile has all lifecycle entrypoints', () => {
+    const rules = resolveProfiles(['android'], emptyConfig);
+    expect(rules.entrypoints).toHaveLength(21);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names.some(n => n.includes('onCreate'))).toBe(true);
+    expect(names.some(n => n.includes('onDestroy'))).toBe(true);
+    expect(names.some(n => n.includes('onResume'))).toBe(true);
+    expect(names.some(n => n.includes('onPause'))).toBe(true);
+    expect(names.some(n => n.includes('onBackPressed'))).toBe(true);
+  });
+
+  test('micronaut profile has 17 entrypoints', () => {
+    const rules = resolveProfiles(['micronaut'], emptyConfig);
+    expect(rules.entrypoints).toHaveLength(17);
+  });
+
+  test('jakarta profile has 17 entrypoints', () => {
+    const rules = resolveProfiles(['jakarta'], emptyConfig);
+    expect(rules.entrypoints).toHaveLength(17);
+  });
+
   test('jakarta profile has expected entrypoints', () => {
     const rules = resolveProfiles(['jakarta'], emptyConfig);
     const names = rules.entrypoints.map(e => e.name);
