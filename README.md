@@ -184,7 +184,7 @@ The server reads from the first found location:
 
 | Field | Type | Description |
 |---|---|---|
-| `activeProfiles` | `string[]` | Profile names to apply. Can be built-in (`spring`, `junit5`, `android`) or user-defined in `profiles`. |
+| `activeProfiles` | `string[]` | Profile names to apply. Can be built-in (`spring`, `junit5`, `android`, `micronaut`, `jakarta`) or user-defined in `profiles`. |
 | `profiles` | `ProfileConfig[]` | User-defined profiles. These extend the built-in profiles. |
 
 #### Profile fields
