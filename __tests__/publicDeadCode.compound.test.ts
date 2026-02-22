@@ -286,6 +286,31 @@ describe('backward-compat: annotation-only entrypoints still work', () => {
   });
 });
 
+// ─── extendsClass rule ───────────────────────────────────────────────────────
+
+describe('extendsClass rule', () => {
+  it('java: class extending exact superclass (exact import) is NOT reported', () => {
+    const { dir, files } = getJavaFiles('extends_class');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'BaseController', rules: [{ extendsClass: 'com.acme.framework.BaseController' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('UserController');
+    expect(allNames).not.toContain('handle');
+  });
+
+  it('java: class extending DIFFERENT superclass IS reported', () => {
+    const { dir, files } = getJavaFiles('extends_class');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'BaseController', rules: [{ extendsClass: 'com.acme.framework.BaseController' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).toContain('unusedServiceMethod');
+  });
+});
+
 // ─── implementsInterface rule ─────────────────────────────────────────────────
 
 describe('implementsInterface rule', () => {

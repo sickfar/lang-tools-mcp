@@ -8,6 +8,7 @@ export type ConditionConfig =
   | { annotatedBy: string }
   | { implementsInterfaceFromPackage: string }
   | { implementsInterface: string }
+  | { extendsClass: string }
   | { extendsClassFromPackage: string }
   | { overridesMethodFromInterface: string }
   | { namePattern: string }
@@ -36,6 +37,7 @@ export type ResolvedCondition =
   | { type: 'annotatedBy'; fqn: string }
   | { type: 'implementsInterfaceFromPackage'; pattern: RegExp }
   | { type: 'implementsInterface'; fqn: string }
+  | { type: 'extendsClass'; fqn: string }
   | { type: 'extendsClassFromPackage'; pattern: RegExp }
   | { type: 'overridesMethodFromInterface'; pattern: RegExp }
   | { type: 'namePattern'; regex: RegExp }
@@ -294,6 +296,9 @@ function resolveCondition(cond: ConditionConfig): ResolvedCondition {
   }
   if ('implementsInterface' in cond) {
     return { type: 'implementsInterface', fqn: cond.implementsInterface };
+  }
+  if ('extendsClass' in cond) {
+    return { type: 'extendsClass', fqn: cond.extendsClass };
   }
   if ('extendsClassFromPackage' in cond) {
     return { type: 'extendsClassFromPackage', pattern: globToRegex(cond.extendsClassFromPackage) };

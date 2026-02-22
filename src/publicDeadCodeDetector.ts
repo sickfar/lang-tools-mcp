@@ -481,6 +481,13 @@ function matchesCondition(
         interfaceIsFromPackage(i, exactRegex, decl.fileImports)
       );
     }
+    case 'extendsClass': {
+      const escaped = cond.fqn.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      const exactRegex = new RegExp(`^${escaped}$`);
+      return decl.implementedInterfaces.some(i =>
+        interfaceIsFromPackage(i, exactRegex, decl.fileImports)
+      );
+    }
     case 'extendsClassFromPackage':
       return decl.implementedInterfaces.some(i =>
         interfaceIsFromPackage(i, cond.pattern, decl.fileImports)

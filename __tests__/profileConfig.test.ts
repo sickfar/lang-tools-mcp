@@ -201,6 +201,21 @@ describe('resolveProfiles', () => {
     }
   });
 
+  test('extendsClass compiles to { type, fqn }', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'extends class', rules: [{ extendsClass: 'com.acme.framework.BaseController' }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    const cond = result.entrypoints[0].conditions[0];
+    expect(cond.type).toBe('extendsClass');
+    if (cond.type === 'extendsClass') {
+      expect(cond.fqn).toBe('com.acme.framework.BaseController');
+    }
+  });
+
   test('extendsClassFromPackage compiles to { type, pattern }', () => {
     const config: LangToolsConfig = {
       profiles: [{
