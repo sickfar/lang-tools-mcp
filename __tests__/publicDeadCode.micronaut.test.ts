@@ -101,6 +101,54 @@ describe('Micronaut profile integration — Java', () => {
     expect(allNames).not.toContain('WsServer');
   });
 
+  it('@Put endpoint method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('updateUser');
+  });
+
+  it('@Delete endpoint method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('deleteUser');
+  });
+
+  it('@Patch endpoint method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('patchUser');
+  });
+
+  it('@Options endpoint method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('optionsUsers');
+  });
+
+  it('@Head endpoint method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('headUsers');
+  });
+
+  it('@Singleton class is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('AppSingleton');
+  });
+
+  it('@Inject field is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('userService');
+  });
+
+  it('@ClientWebSocket interface is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('WsClient');
+  });
+
   it('class with no micronaut annotations IS reported as dead', () => {
     const result = detectPublicDeadCodeInFiles(files, 'java', micronautRules, [dir], ['micronaut']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));

@@ -82,6 +82,48 @@ describe('Jakarta profile integration — Java', () => {
     expect(allNames).not.toContain('create');
   });
 
+  it('@PUT method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('update');
+  });
+
+  it('@DELETE method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('remove');
+  });
+
+  it('@PATCH method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('patch');
+  });
+
+  it('@HEAD method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('head');
+  });
+
+  it('@OPTIONS method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('options');
+  });
+
+  it('EJB @Singleton class is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('EjbSingleton');
+  });
+
+  it('@Schedule method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('scheduledTask');
+  });
+
   it('@Stateless class is NOT reported', () => {
     const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));

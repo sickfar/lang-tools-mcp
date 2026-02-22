@@ -1,5 +1,6 @@
 package com.example;
 
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -52,6 +53,11 @@ public class UserService {
 public class AppProperties {
     public String name;
     public String host;
+}
+
+@Controller
+public class UserMvcController {
+    public String show() { return ""; }
 }
 
 public class UnusedService {

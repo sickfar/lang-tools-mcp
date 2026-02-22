@@ -41,6 +41,21 @@ describe('Android profile integration', () => {
     expect(allNames).not.toContain('onResume');
   });
 
+  it('all remaining Android lifecycle methods are NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'kotlin', androidRules, [dir], ['android']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    const lifecycleMethods = [
+      'onStart', 'onPause', 'onStop', 'onCreateView', 'onViewCreated',
+      'onAttach', 'onDetach', 'onReceive', 'onBind', 'onUnbind', 'onRebind',
+      'onSaveInstanceState', 'onRestoreInstanceState', 'onActivityResult',
+      'onOptionsItemSelected', 'onCreateOptionsMenu', 'onRequestPermissionsResult',
+      'onBackPressed',
+    ];
+    for (const method of lifecycleMethods) {
+      expect(allNames).not.toContain(method);
+    }
+  });
+
   it('custom helper method (not an Android lifecycle) IS reported as dead', () => {
     const result = detectPublicDeadCodeInFiles(files, 'kotlin', androidRules, [dir], ['android']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));

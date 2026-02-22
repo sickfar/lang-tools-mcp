@@ -105,6 +105,12 @@ describe('Spring profile — extended annotation coverage', () => {
     expect(allNames).toContain('UnusedService');
   });
 
+  it('@Controller class is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', springRules, [dir], ['spring']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('UserMvcController');
+  });
+
   it('method with no spring annotations IS reported as dead', () => {
     const result = detectPublicDeadCodeInFiles(files, 'java', springRules, [dir], ['spring']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));

@@ -41,6 +41,60 @@ describe('JUnit5 profile integration', () => {
     expect(allNames).not.toContain('teardown');
   });
 
+  it('@BeforeAll method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('setupAll');
+  });
+
+  it('@AfterAll method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('teardownAll');
+  });
+
+  it('@ParameterizedTest method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('parameterizedTest');
+  });
+
+  it('@TestFactory method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('testFactory');
+  });
+
+  it('@RepeatedTest method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('repeatedTest');
+  });
+
+  it('@Tag method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('taggedTest');
+  });
+
+  it('@ExtendWith method is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('withExtension');
+  });
+
+  it('@Nested class is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('NestedTests');
+  });
+
+  it('@Suite class is NOT reported', () => {
+    const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('JUnit5Suite');
+  });
+
   it('helper method with no junit5 annotation IS reported as dead', () => {
     const result = detectPublicDeadCodeInFiles(files, 'java', junit5Rules, [dir], ['junit5']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
