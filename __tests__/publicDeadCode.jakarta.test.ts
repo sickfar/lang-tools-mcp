@@ -40,7 +40,7 @@ describe('Jakarta profile integration — Java', () => {
     expect(allNames).not.toContain('UserService');
   });
 
-  it('@Inject field is NOT reported (class cascade from @Singleton)', () => {
+  it('@Inject field is NOT reported (direct entrypoint match via Jakarta injection point rule)', () => {
     const result = detectPublicDeadCodeInFiles(files, 'java', jakartaRules, [dir], ['jakarta']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
     expect(allNames).not.toContain('repo');

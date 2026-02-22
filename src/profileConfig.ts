@@ -36,8 +36,8 @@ export interface LangToolsConfig {
 export type ResolvedCondition =
   | { type: 'annotatedBy'; fqn: string }
   | { type: 'implementsInterfaceFromPackage'; pattern: RegExp }
-  | { type: 'implementsInterface'; fqn: string }
-  | { type: 'extendsClass'; fqn: string }
+  | { type: 'implementsInterface'; pattern: RegExp }
+  | { type: 'extendsClass'; pattern: RegExp }
   | { type: 'extendsClassFromPackage'; pattern: RegExp }
   | { type: 'overridesMethodFromInterface'; pattern: RegExp }
   | { type: 'namePattern'; regex: RegExp }
@@ -137,6 +137,8 @@ const BUILT_IN_PROFILES: ProfileConfig[] = [
   {
     name: 'micronaut',
     entrypoints: [
+      { name: 'Micronaut singleton bean',           rules: [{ annotatedBy: 'io.micronaut.context.annotation.Singleton' }] },
+      { name: 'Micronaut injection point',          rules: [{ annotatedBy: 'jakarta.inject.Inject' }] },
       { name: 'Micronaut HTTP controller',          rules: [{ annotatedBy: 'io.micronaut.http.annotation.Controller' }] },
       { name: 'Micronaut GET endpoint',             rules: [{ annotatedBy: 'io.micronaut.http.annotation.Get' }] },
       { name: 'Micronaut POST endpoint',            rules: [{ annotatedBy: 'io.micronaut.http.annotation.Post' }] },
@@ -174,6 +176,8 @@ const BUILT_IN_PROFILES: ProfileConfig[] = [
       { name: 'JAX-RS PUT method',                 rules: [{ annotatedBy: 'jakarta.ws.rs.PUT' }] },
       { name: 'JAX-RS DELETE method',              rules: [{ annotatedBy: 'jakarta.ws.rs.DELETE' }] },
       { name: 'JAX-RS PATCH method',               rules: [{ annotatedBy: 'jakarta.ws.rs.PATCH' }] },
+      { name: 'JAX-RS HEAD method',                rules: [{ annotatedBy: 'jakarta.ws.rs.HEAD' }] },
+      { name: 'JAX-RS OPTIONS method',             rules: [{ annotatedBy: 'jakarta.ws.rs.OPTIONS' }] },
       // EJB
       { name: 'EJB Stateless session bean',        rules: [{ annotatedBy: 'jakarta.ejb.Stateless' }] },
       { name: 'EJB Stateful session bean',         rules: [{ annotatedBy: 'jakarta.ejb.Stateful' }] },
@@ -344,10 +348,12 @@ function resolveCondition(cond: ConditionConfig): ResolvedCondition {
     return { type: 'implementsInterfaceFromPackage', pattern: globToRegex(cond.implementsInterfaceFromPackage) };
   }
   if ('implementsInterface' in cond) {
-    return { type: 'implementsInterface', fqn: cond.implementsInterface };
+    const escaped = cond.implementsInterface.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    return { type: 'implementsInterface', pattern: new RegExp(`^${escaped}$`) };
   }
   if ('extendsClass' in cond) {
-    return { type: 'extendsClass', fqn: cond.extendsClass };
+    const escaped = cond.extendsClass.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    return { type: 'extendsClass', pattern: new RegExp(`^${escaped}$`) };
   }
   if ('extendsClassFromPackage' in cond) {
     return { type: 'extendsClassFromPackage', pattern: globToRegex(cond.extendsClassFromPackage) };

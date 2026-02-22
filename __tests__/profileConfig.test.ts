@@ -186,7 +186,7 @@ describe('resolveProfiles', () => {
     expect('pattern' in cond && cond.pattern.test('com.example.Foo')).toBe(false);
   });
 
-  test('implementsInterface compiles to { type, fqn }', () => {
+  test('implementsInterface compiles to { type, pattern } with pre-compiled regex', () => {
     const config: LangToolsConfig = {
       profiles: [{
         name: 'myProfile',
@@ -197,11 +197,13 @@ describe('resolveProfiles', () => {
     const cond = result.entrypoints[0].conditions[0];
     expect(cond.type).toBe('implementsInterface');
     if (cond.type === 'implementsInterface') {
-      expect(cond.fqn).toBe('java.io.Serializable');
+      expect(cond.pattern.test('java.io.Serializable')).toBe(true);
+      expect(cond.pattern.test('java.io.Externalizable')).toBe(false);
+      expect(cond.pattern.test('com.example.Serializable')).toBe(false);
     }
   });
 
-  test('extendsClass compiles to { type, fqn }', () => {
+  test('extendsClass compiles to { type, pattern } with pre-compiled regex', () => {
     const config: LangToolsConfig = {
       profiles: [{
         name: 'myProfile',
@@ -212,7 +214,9 @@ describe('resolveProfiles', () => {
     const cond = result.entrypoints[0].conditions[0];
     expect(cond.type).toBe('extendsClass');
     if (cond.type === 'extendsClass') {
-      expect(cond.fqn).toBe('com.acme.framework.BaseController');
+      expect(cond.pattern.test('com.acme.framework.BaseController')).toBe(true);
+      expect(cond.pattern.test('com.acme.other.BaseController')).toBe(false);
+      expect(cond.pattern.test('com.acme.framework.BaseControllerExtended')).toBe(false);
     }
   });
 
@@ -377,14 +381,14 @@ describe('resolveProfiles', () => {
     expect(names.some(n => n.includes('onBackPressed'))).toBe(true);
   });
 
-  test('micronaut profile has 17 entrypoints', () => {
+  test('micronaut profile has 19 entrypoints', () => {
     const rules = resolveProfiles(['micronaut'], emptyConfig);
-    expect(rules.entrypoints).toHaveLength(17);
+    expect(rules.entrypoints).toHaveLength(19);
   });
 
-  test('jakarta profile has 17 entrypoints', () => {
+  test('jakarta profile has 19 entrypoints', () => {
     const rules = resolveProfiles(['jakarta'], emptyConfig);
-    expect(rules.entrypoints).toHaveLength(17);
+    expect(rules.entrypoints).toHaveLength(19);
   });
 
   test('jakarta profile has expected entrypoints', () => {
@@ -400,6 +404,8 @@ describe('resolveProfiles', () => {
   test('micronaut profile has expected entrypoints', () => {
     const rules = resolveProfiles(['micronaut'], emptyConfig);
     const names = rules.entrypoints.map(e => e.name);
+    expect(names).toContain('Micronaut singleton bean');
+    expect(names).toContain('Micronaut injection point');
     expect(names).toContain('Micronaut HTTP controller');
     expect(names).toContain('Micronaut GET endpoint');
     expect(names).toContain('Micronaut factory class');

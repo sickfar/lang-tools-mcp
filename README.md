@@ -210,12 +210,15 @@ All conditions within one entrypoint are AND'd together. Conditions across diffe
 |---|---|---|
 | `annotatedBy` | FQN string, e.g. `"org.springframework.stereotype.Component"` | The declaration has that annotation AND the file imports it (exact or wildcard). |
 | `implementsInterfaceFromPackage` | Package glob, e.g. `"org.springframework.*"` | The class implements any interface imported from a matching package. |
-| `extendsFromPackage` | Package glob, e.g. `"org.springframework.*"` | The class extends a class imported from a matching package. |
+| `implementsInterface` | FQN string, e.g. `"java.io.Serializable"` | The class implements the exact interface (resolved via import, exact or wildcard). |
+| `extendsClassFromPackage` | Package glob, e.g. `"org.springframework.*"` | The class extends a class imported from a matching package. |
+| `extendsClass` | FQN string, e.g. `"com.example.BaseController"` | The class extends the exact superclass (resolved via import, exact or wildcard). |
 | `overridesMethodFromInterface` | Package glob | The method has `override`/`@Override` AND the enclosing class implements an interface from that package. |
 | `namePattern` | Glob string, e.g. `"on*"` | The declaration name matches the glob (`*` = any chars, `?` = one char). |
 | `packagePattern` | Glob string, e.g. `"com.example.api.*"` | The file's package declaration matches the glob. |
-| `interfaces` | Simple name, e.g. `"Runnable"` | The class directly lists that interface name (no import resolution). |
 | `serviceDiscovery` | `true` | The class is registered in `META-INF/services`. |
+
+> **Note on `implementsInterface` and `extendsClass`:** The internal AST representation does not always distinguish between implemented interfaces and extended classes (particularly in Kotlin where both appear as `delegation_specifier` nodes). These rule names are semantic hints for clarity — both rules perform the same import-resolved exact-FQN lookup.
 
 > **Note on `annotatedBy` import resolution:** Package wildcards in import statements (e.g. `import org.springframework.*`) are treated as recursive prefix matches covering all sub-packages. This is a conservative approximation that avoids false positives at the cost of occasionally missing dead code when a very broad wildcard import is used.
 
@@ -254,6 +257,23 @@ Covers: `@Test`, `@BeforeEach`, `@AfterEach`, `@BeforeAll`, `@AfterAll`, `@Param
 Marks Android lifecycle callbacks as alive via name pattern matching.
 
 Covers: `onCreate`, `onStart`, `onResume`, `onPause`, `onStop`, `onDestroy`, `onCreateView`, `onViewCreated`, `onAttach`, `onDetach`, `onReceive`, `onBind`, `onUnbind`, `onRebind`, `onSaveInstanceState`, `onRestoreInstanceState`, `onActivityResult`, `onOptionsItemSelected`, `onCreateOptionsMenu`, `onRequestPermissionsResult`, `onBackPressed`.
+
+#### `micronaut`
+
+Marks Micronaut framework entry points as alive.
+
+Covers: `@Singleton`, `@Inject`, `@Controller`, `@Get`, `@Post`, `@Put`, `@Delete`, `@Patch`, `@Options`, `@Head`, `@Filter`, `@Client`, `@Factory`, `@Bean`, `@Scheduled`, `@EventListener`, `@ConfigurationProperties`, `@ServerWebSocket`, `@ClientWebSocket`.
+
+#### `jakarta`
+
+Marks Jakarta EE entry points as alive.
+
+Covers:
+- **DI:** `@Singleton` (`jakarta.inject`), `@Inject`
+- **CDI scopes:** `@ApplicationScoped`, `@RequestScoped`, `@SessionScoped`, `@Produces`
+- **JAX-RS:** `@Path`, `@GET`, `@POST`, `@PUT`, `@DELETE`, `@PATCH`, `@HEAD`, `@OPTIONS`
+- **EJB:** `@Stateless`, `@Stateful`, `@Singleton` (`jakarta.ejb`), `@Schedule`
+- **JPA:** `@Entity`
 
 ### Example: Spring project
 

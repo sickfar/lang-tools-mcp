@@ -474,20 +474,18 @@ function matchesCondition(
       return decl.implementedInterfaces.some(i =>
         interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
       );
-    case 'implementsInterface': {
-      const escaped = cond.fqn.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-      const exactRegex = new RegExp(`^${escaped}$`);
+    case 'implementsInterface':
+      // implementedInterfaces contains both implemented interfaces and superclass(es);
+      // the rule name is a semantic hint to users, not a structurally enforced distinction.
       return decl.implementedInterfaces.some(i =>
-        interfaceIsFromPackage(i, exactRegex, decl.fileImports)
+        interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
       );
-    }
-    case 'extendsClass': {
-      const escaped = cond.fqn.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-      const exactRegex = new RegExp(`^${escaped}$`);
+    case 'extendsClass':
+      // implementedInterfaces contains both supertypes and interfaces (same field);
+      // the rule name is a semantic hint to users, not a structurally enforced distinction.
       return decl.implementedInterfaces.some(i =>
-        interfaceIsFromPackage(i, exactRegex, decl.fileImports)
+        interfaceIsFromPackage(i, cond.pattern, decl.fileImports)
       );
-    }
     case 'extendsClassFromPackage':
       return decl.implementedInterfaces.some(i =>
         interfaceIsFromPackage(i, cond.pattern, decl.fileImports)

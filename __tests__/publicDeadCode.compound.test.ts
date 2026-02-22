@@ -309,6 +309,27 @@ describe('extendsClass rule', () => {
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
     expect(allNames).toContain('unusedServiceMethod');
   });
+
+  it('kotlin: class extending exact superclass (exact import) is NOT reported', () => {
+    const { dir, files } = getKotlinFiles('extends_class');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'BaseController', rules: [{ extendsClass: 'com.acme.framework.BaseController' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'kotlin', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('UserController');
+    expect(allNames).not.toContain('handle');
+  });
+
+  it('kotlin: class extending DIFFERENT superclass IS reported', () => {
+    const { dir, files } = getKotlinFiles('extends_class');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'BaseController', rules: [{ extendsClass: 'com.acme.framework.BaseController' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'kotlin', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).toContain('unusedServiceMethod');
+  });
 });
 
 // ─── implementsInterface rule ─────────────────────────────────────────────────
@@ -342,6 +363,27 @@ describe('implementsInterface rule', () => {
       profiles: [{ name: 'myProfile', entrypoints: [{ name: 'Serializable', rules: [{ implementsInterface: 'java.io.Serializable' }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).toContain('unusedMethod');
+  });
+
+  it('kotlin: class implementing exact interface (exact import) is NOT reported', () => {
+    const { dir, files } = getKotlinFiles('implements_interface');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'Serializable', rules: [{ implementsInterface: 'java.io.Serializable' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'kotlin', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('ImplementsSerializable');
+    expect(allNames).not.toContain('getData');
+  });
+
+  it('kotlin: class implementing DIFFERENT interface IS reported', () => {
+    const { dir, files } = getKotlinFiles('implements_interface');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'Serializable', rules: [{ implementsInterface: 'java.io.Serializable' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'kotlin', rules, [dir], ['myProfile']);
     const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
     expect(allNames).toContain('unusedMethod');
   });
