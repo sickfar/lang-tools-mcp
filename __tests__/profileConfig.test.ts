@@ -325,6 +325,16 @@ describe('resolveProfiles', () => {
     expect(() => resolveProfiles(['android'], emptyConfig)).not.toThrow();
   });
 
+  test('jakarta profile has expected entrypoints', () => {
+    const rules = resolveProfiles(['jakarta'], emptyConfig);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names).toContain('Jakarta Singleton bean');
+    expect(names).toContain('JAX-RS resource class or method');
+    expect(names).toContain('EJB Stateless session bean');
+    expect(names).toContain('JPA entity class');
+    expect(names).toContain('Jakarta CDI ApplicationScoped');
+  });
+
   test('micronaut profile has expected entrypoints', () => {
     const rules = resolveProfiles(['micronaut'], emptyConfig);
     const names = rules.entrypoints.map(e => e.name);

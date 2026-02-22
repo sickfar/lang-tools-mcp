@@ -156,6 +156,33 @@ const BUILT_IN_PROFILES: ProfileConfig[] = [
       { name: 'Micronaut WebSocket client',         rules: [{ annotatedBy: 'io.micronaut.websocket.annotation.ClientWebSocket' }] },
     ],
   },
+  {
+    name: 'jakarta',
+    entrypoints: [
+      // DI
+      { name: 'Jakarta Singleton bean',            rules: [{ annotatedBy: 'jakarta.inject.Singleton' }] },
+      { name: 'Jakarta injection point',           rules: [{ annotatedBy: 'jakarta.inject.Inject' }] },
+      // CDI scopes
+      { name: 'Jakarta CDI ApplicationScoped',     rules: [{ annotatedBy: 'jakarta.enterprise.context.ApplicationScoped' }] },
+      { name: 'Jakarta CDI RequestScoped',         rules: [{ annotatedBy: 'jakarta.enterprise.context.RequestScoped' }] },
+      { name: 'Jakarta CDI SessionScoped',         rules: [{ annotatedBy: 'jakarta.enterprise.context.SessionScoped' }] },
+      { name: 'Jakarta CDI producer',              rules: [{ annotatedBy: 'jakarta.enterprise.inject.Produces' }] },
+      // JAX-RS
+      { name: 'JAX-RS resource class or method',   rules: [{ annotatedBy: 'jakarta.ws.rs.Path' }] },
+      { name: 'JAX-RS GET method',                 rules: [{ annotatedBy: 'jakarta.ws.rs.GET' }] },
+      { name: 'JAX-RS POST method',                rules: [{ annotatedBy: 'jakarta.ws.rs.POST' }] },
+      { name: 'JAX-RS PUT method',                 rules: [{ annotatedBy: 'jakarta.ws.rs.PUT' }] },
+      { name: 'JAX-RS DELETE method',              rules: [{ annotatedBy: 'jakarta.ws.rs.DELETE' }] },
+      { name: 'JAX-RS PATCH method',               rules: [{ annotatedBy: 'jakarta.ws.rs.PATCH' }] },
+      // EJB
+      { name: 'EJB Stateless session bean',        rules: [{ annotatedBy: 'jakarta.ejb.Stateless' }] },
+      { name: 'EJB Stateful session bean',         rules: [{ annotatedBy: 'jakarta.ejb.Stateful' }] },
+      { name: 'EJB Singleton',                     rules: [{ annotatedBy: 'jakarta.ejb.Singleton' }] },
+      { name: 'EJB scheduled method',              rules: [{ annotatedBy: 'jakarta.ejb.Schedule' }] },
+      // JPA
+      { name: 'JPA entity class',                  rules: [{ annotatedBy: 'jakarta.persistence.Entity' }] },
+    ],
+  },
 ];
 
 // --- Glob to RegExp conversion -----------------------------------------------
