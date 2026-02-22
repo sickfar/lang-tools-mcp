@@ -186,6 +186,21 @@ describe('resolveProfiles', () => {
     expect('pattern' in cond && cond.pattern.test('com.example.Foo')).toBe(false);
   });
 
+  test('implementsInterface compiles to { type, fqn }', () => {
+    const config: LangToolsConfig = {
+      profiles: [{
+        name: 'myProfile',
+        entrypoints: [{ name: 'implements specific interface', rules: [{ implementsInterface: 'java.io.Serializable' }] }],
+      }],
+    };
+    const result = resolveProfiles(['myProfile'], config);
+    const cond = result.entrypoints[0].conditions[0];
+    expect(cond.type).toBe('implementsInterface');
+    if (cond.type === 'implementsInterface') {
+      expect(cond.fqn).toBe('java.io.Serializable');
+    }
+  });
+
   test('extendsClassFromPackage compiles to { type, pattern }', () => {
     const config: LangToolsConfig = {
       profiles: [{

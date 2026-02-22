@@ -7,6 +7,7 @@ import * as os from 'os';
 export type ConditionConfig =
   | { annotatedBy: string }
   | { implementsInterfaceFromPackage: string }
+  | { implementsInterface: string }
   | { extendsClassFromPackage: string }
   | { overridesMethodFromInterface: string }
   | { namePattern: string }
@@ -34,6 +35,7 @@ export interface LangToolsConfig {
 export type ResolvedCondition =
   | { type: 'annotatedBy'; fqn: string }
   | { type: 'implementsInterfaceFromPackage'; pattern: RegExp }
+  | { type: 'implementsInterface'; fqn: string }
   | { type: 'extendsClassFromPackage'; pattern: RegExp }
   | { type: 'overridesMethodFromInterface'; pattern: RegExp }
   | { type: 'namePattern'; regex: RegExp }
@@ -289,6 +291,9 @@ function resolveCondition(cond: ConditionConfig): ResolvedCondition {
   }
   if ('implementsInterfaceFromPackage' in cond) {
     return { type: 'implementsInterfaceFromPackage', pattern: globToRegex(cond.implementsInterfaceFromPackage) };
+  }
+  if ('implementsInterface' in cond) {
+    return { type: 'implementsInterface', fqn: cond.implementsInterface };
   }
   if ('extendsClassFromPackage' in cond) {
     return { type: 'extendsClassFromPackage', pattern: globToRegex(cond.extendsClassFromPackage) };

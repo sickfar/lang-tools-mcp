@@ -285,3 +285,39 @@ describe('backward-compat: annotation-only entrypoints still work', () => {
     expect(allNames).toContain('UnlistedImpl');
   });
 });
+
+// ─── implementsInterface rule ─────────────────────────────────────────────────
+
+describe('implementsInterface rule', () => {
+  it('java: class implementing exact interface (exact import) is NOT reported', () => {
+    const { dir, files } = getJavaFiles('implements_interface');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'Serializable', rules: [{ implementsInterface: 'java.io.Serializable' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('ImplementsSerializable');
+    expect(allNames).not.toContain('getData');
+  });
+
+  it('java: class implementing exact interface (wildcard import) is NOT reported', () => {
+    const { dir, files } = getJavaFiles('implements_interface');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'Serializable', rules: [{ implementsInterface: 'java.io.Serializable' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).not.toContain('ImplementsSerializableWildcard');
+    expect(allNames).not.toContain('getWildcardData');
+  });
+
+  it('java: class implementing DIFFERENT interface IS reported', () => {
+    const { dir, files } = getJavaFiles('implements_interface');
+    const rules = resolveProfiles(['myProfile'], {
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'Serializable', rules: [{ implementsInterface: 'java.io.Serializable' }] }] }]
+    });
+    const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
+    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
+    expect(allNames).toContain('unusedMethod');
+  });
+});
