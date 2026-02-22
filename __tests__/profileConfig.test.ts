@@ -325,6 +325,17 @@ describe('resolveProfiles', () => {
     expect(() => resolveProfiles(['android'], emptyConfig)).not.toThrow();
   });
 
+  test('micronaut profile has expected entrypoints', () => {
+    const rules = resolveProfiles(['micronaut'], emptyConfig);
+    const names = rules.entrypoints.map(e => e.name);
+    expect(names).toContain('Micronaut HTTP controller');
+    expect(names).toContain('Micronaut GET endpoint');
+    expect(names).toContain('Micronaut factory class');
+    expect(names).toContain('Micronaut scheduled task');
+    expect(names).toContain('Micronaut event listener');
+    expect(names).toContain('Micronaut WebSocket server');
+  });
+
   test('entrypoint with empty name throws a descriptive error', () => {
     const config: LangToolsConfig = {
       profiles: [{

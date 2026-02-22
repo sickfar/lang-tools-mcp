@@ -134,6 +134,28 @@ const BUILT_IN_PROFILES: ProfileConfig[] = [
       { name: 'Android onBackPressed',              rules: [{ namePattern: 'onBackPressed' }] },
     ],
   },
+  {
+    name: 'micronaut',
+    entrypoints: [
+      { name: 'Micronaut HTTP controller',          rules: [{ annotatedBy: 'io.micronaut.http.annotation.Controller' }] },
+      { name: 'Micronaut GET endpoint',             rules: [{ annotatedBy: 'io.micronaut.http.annotation.Get' }] },
+      { name: 'Micronaut POST endpoint',            rules: [{ annotatedBy: 'io.micronaut.http.annotation.Post' }] },
+      { name: 'Micronaut PUT endpoint',             rules: [{ annotatedBy: 'io.micronaut.http.annotation.Put' }] },
+      { name: 'Micronaut DELETE endpoint',          rules: [{ annotatedBy: 'io.micronaut.http.annotation.Delete' }] },
+      { name: 'Micronaut PATCH endpoint',           rules: [{ annotatedBy: 'io.micronaut.http.annotation.Patch' }] },
+      { name: 'Micronaut OPTIONS endpoint',         rules: [{ annotatedBy: 'io.micronaut.http.annotation.Options' }] },
+      { name: 'Micronaut HEAD endpoint',            rules: [{ annotatedBy: 'io.micronaut.http.annotation.Head' }] },
+      { name: 'Micronaut HTTP filter',              rules: [{ annotatedBy: 'io.micronaut.http.annotation.Filter' }] },
+      { name: 'Micronaut declarative HTTP client',  rules: [{ annotatedBy: 'io.micronaut.http.client.annotation.Client' }] },
+      { name: 'Micronaut factory class',            rules: [{ annotatedBy: 'io.micronaut.context.annotation.Factory' }] },
+      { name: 'Micronaut factory bean method',      rules: [{ annotatedBy: 'io.micronaut.context.annotation.Bean' }] },
+      { name: 'Micronaut scheduled task',           rules: [{ annotatedBy: 'io.micronaut.scheduling.annotation.Scheduled' }] },
+      { name: 'Micronaut event listener',           rules: [{ annotatedBy: 'io.micronaut.runtime.event.annotation.EventListener' }] },
+      { name: 'Micronaut configuration properties', rules: [{ annotatedBy: 'io.micronaut.context.annotation.ConfigurationProperties' }] },
+      { name: 'Micronaut WebSocket server',         rules: [{ annotatedBy: 'io.micronaut.websocket.annotation.ServerWebSocket' }] },
+      { name: 'Micronaut WebSocket client',         rules: [{ annotatedBy: 'io.micronaut.websocket.annotation.ClientWebSocket' }] },
+    ],
+  },
 ];
 
 // --- Glob to RegExp conversion -----------------------------------------------

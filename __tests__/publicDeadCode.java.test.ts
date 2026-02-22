@@ -182,9 +182,9 @@ describe('interface rules', () => {
   const dir = fixtureDir('interface_rule');
   const files = getFiles(dir);
 
-  it('interface rule protects ALL members of matching class', () => {
+  it('implementsInterfaceFromPackage rule protects ALL members of matching class', () => {
     const rules = resolveProfiles(['myProfile'], {
-      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'interface Serializable', rules: [{ interfaces: 'Serializable' }] }] }]
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'interface Serializable', rules: [{ implementsInterfaceFromPackage: 'java.io.*' }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
     // Check per-file: SerializableImpl's members should not be reported (whole class protected)
@@ -199,7 +199,7 @@ describe('interface rules', () => {
 
   it('PlainClass methods are reported (no interface match)', () => {
     const rules = resolveProfiles(['myProfile'], {
-      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'interface Serializable', rules: [{ interfaces: 'Serializable' }] }] }]
+      profiles: [{ name: 'myProfile', entrypoints: [{ name: 'interface Serializable', rules: [{ implementsInterfaceFromPackage: 'java.io.*' }] }] }]
     });
     const result = detectPublicDeadCodeInFiles(files, 'java', rules, [dir], ['myProfile']);
     const plainClassFindings = result.files
