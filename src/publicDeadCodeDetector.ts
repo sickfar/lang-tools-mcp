@@ -1247,14 +1247,14 @@ export function detectPublicDeadCodeInFiles(
     });
   }
 
-  // Build result
+  // Build result — omit files with no findings and no error to reduce output size
   const fileResults: PublicDeadCodeFileResult[] = [];
   for (const fp of filePaths) {
     const findings = findingsPerFile.get(fp) ?? [];
     const error = fileErrors.get(fp);
     if (error !== undefined) {
       fileResults.push({ file: fp, findings: [], error });
-    } else {
+    } else if (findings.length > 0) {
       fileResults.push({ file: fp, findings });
     }
   }

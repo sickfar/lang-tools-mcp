@@ -1,0 +1,3 @@
+class NoFindings {
+    fun helper() {}
+}

@@ -263,11 +263,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         fileResults.push(result);
       }
 
+      // Note: filesProcessed counts only successfully-resolved files; resolve-error entries
+      // may also appear in files[] but are not counted here (known, documented discrepancy).
       const response = {
         status: "OK",
         filesProcessed: resolved.length,
         totalFindings,
-        files: fileResults,
+        files: fileResults.filter(r => r.findings.length > 0 || r.error !== undefined),
       };
 
       return {
