@@ -193,6 +193,19 @@ export function extractUsedIdentifiers(tree: Parser.Tree, sourceCode: string, la
     }
   }
 
+  // Kotlin: extract identifiers from simple $name string templates.
+  // tree-sitter-kotlin does NOT create AST identifier nodes for the $name form —
+  // only ${expr} gets an interpolation → identifier node. Regex-scan string literals.
+  if (language === 'kotlin') {
+    for (const strNode of rootNode.descendantsOfType(['string_literal', 'multiline_string_literal'])) {
+      const text = sourceCode.substring(strNode.startIndex, strNode.endIndex);
+      const matches = text.matchAll(/\$([a-zA-Z_]\w*)/g);
+      for (const match of matches) {
+        usedIdentifiers.add(match[1]);
+      }
+    }
+  }
+
   return usedIdentifiers;
 }
 

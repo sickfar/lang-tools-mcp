@@ -415,6 +415,112 @@ class Test {
     });
   });
 
+  describe('String template $name identifier extraction', () => {
+    it('should preserve import used only via simple $name string template', () => {
+      const code = `package com.example.service.profile
+
+import com.example.service.UPLOAD_PREFIX
+
+class ProfileService {
+    fun buildPath(name: String): String {
+        return "${'$'}name/${'$'}UPLOAD_PREFIX-file.png"
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIds = extractUsedIdentifiers(tree, code, 'kotlin');
+      const cleaned = removeUnusedImports(code, imports, usedIds);
+
+      expect(usedIds.has('UPLOAD_PREFIX')).toBe(true);
+      expect(cleaned).toContain('import com.example.service.UPLOAD_PREFIX');
+    });
+
+    it('should preserve import used via $name in multiline string', () => {
+      const code = `package com.example
+
+import com.example.config.BASE_URL
+
+class Config {
+    val template = ${'"""'}
+        endpoint: ${'$'}BASE_URL/api/v1
+        timeout: 30
+    ${'"""'}.trimIndent()
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIds = extractUsedIdentifiers(tree, code, 'kotlin');
+      const cleaned = removeUnusedImports(code, imports, usedIds);
+
+      expect(usedIds.has('BASE_URL')).toBe(true);
+      expect(cleaned).toContain('import com.example.config.BASE_URL');
+    });
+
+    it('should preserve imports used via both $name and ${expr} forms', () => {
+      const code = `package com.example
+
+import com.example.config.PREFIX
+import com.example.config.SUFFIX
+
+class Test {
+    fun format(name: String): String {
+        return "${'$'}PREFIX-${'$'}{name}-${'$'}SUFFIX"
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIds = extractUsedIdentifiers(tree, code, 'kotlin');
+      const cleaned = removeUnusedImports(code, imports, usedIds);
+
+      expect(cleaned).toContain('import com.example.config.PREFIX');
+      expect(cleaned).toContain('import com.example.config.SUFFIX');
+    });
+
+    it('should preserve import when $name is followed by non-identifier chars', () => {
+      const code = `package com.example
+
+import com.example.config.CONST
+
+class Test {
+    fun test(): String {
+        val a = "${'$'}CONST-suffix"
+        val b = "${'$'}CONST/path"
+        val c = "${'$'}CONST.ext"
+        return a + b + c
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIds = extractUsedIdentifiers(tree, code, 'kotlin');
+      const cleaned = removeUnusedImports(code, imports, usedIds);
+
+      expect(usedIds.has('CONST')).toBe(true);
+      expect(cleaned).toContain('import com.example.config.CONST');
+    });
+
+    it('should still remove unused import when identifier only appears as plain text in string', () => {
+      const code = `package com.example
+
+import com.example.config.UNUSED_CONST
+
+class Test {
+    fun test(): String {
+        return "no dollar sign UNUSED_CONST here"
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const imports = extractKotlinImports(tree, code);
+      const usedIds = extractUsedIdentifiers(tree, code, 'kotlin');
+      const cleaned = removeUnusedImports(code, imports, usedIds);
+
+      expect(cleaned).not.toContain('import com.example.config.UNUSED_CONST');
+    });
+  });
+
   describe('Operator extension function imports', () => {
     it('should preserve getValue and setValue imports used via by delegation', () => {
       const code = `package com.example
