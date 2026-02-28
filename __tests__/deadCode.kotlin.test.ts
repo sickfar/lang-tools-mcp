@@ -7,6 +7,7 @@ import {
   detectUnusedLocalVariables,
   detectUnusedFields,
   detectUnusedPrivateMethods,
+  findNameNode,
   KOTLIN_CONFIG,
 } from '../src/deadCodeDetector.js';
 
@@ -459,6 +460,97 @@ class Test {
       expect(findings).toHaveLength(0);
     });
 
+    // Extension function tests
+    it('should not flag private extension function that is called on receiver', () => {
+      const code = `
+class Test {
+    private fun String.transform(): String {
+        return this.uppercase()
+    }
+    fun demo() {
+        val input = "hello"
+        input.transform()
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('transform');
+    });
+
+    it('should flag truly unused private extension function', () => {
+      const code = `
+class Test {
+    private fun String.unusedExt(): String {
+        return this.uppercase()
+    }
+    fun demo() {
+        println("hello")
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).toContain('unusedExt');
+    });
+
+    it('should not flag private extension function called on custom type receiver', () => {
+      const code = `
+class MyData(val value: Int)
+class Test {
+    private fun MyData.doubled(): Int {
+        return this.value * 2
+    }
+    fun demo() {
+        val d = MyData(5)
+        d.doubled()
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('doubled');
+    });
+
+  });
+
+  describe('findNameNode for extension functions', () => {
+    it('should return function name, not receiver type, for extension function', () => {
+      const code = `fun String.process(x: Int): String { return this }`;
+      const tree = parseKotlin(code);
+      const funcDecl = tree.rootNode.descendantsOfType('function_declaration')[0];
+      const nameNode = findNameNode(funcDecl, KOTLIN_CONFIG);
+      expect(nameNode).not.toBeNull();
+      expect(nameNode!.text).toBe('process');
+    });
+
+    it('should return property name, not receiver type, for extension property', () => {
+      const code = `val String.lastChar: Char get() = this[length - 1]`;
+      const tree = parseKotlin(code);
+      // Extension properties use property_declaration
+      const propDecl = tree.rootNode.descendantsOfType('property_declaration')[0];
+      const nameNode = findNameNode(propDecl, KOTLIN_CONFIG);
+      expect(nameNode).not.toBeNull();
+      expect(nameNode!.text).toBe('lastChar');
+    });
+
+    it('should still work for regular non-extension functions', () => {
+      const code = `fun normalFunction(x: Int): Int { return x }`;
+      const tree = parseKotlin(code);
+      const funcDecl = tree.rootNode.descendantsOfType('function_declaration')[0];
+      const nameNode = findNameNode(funcDecl, KOTLIN_CONFIG);
+      expect(nameNode).not.toBeNull();
+      expect(nameNode!.text).toBe('normalFunction');
+    });
+
+    it('should still work for regular non-extension properties', () => {
+      const code = `val normalProp: Int = 42`;
+      const tree = parseKotlin(code);
+      const propDecl = tree.rootNode.descendantsOfType('property_declaration')[0];
+      const nameNode = findNameNode(propDecl, KOTLIN_CONFIG);
+      expect(nameNode).not.toBeNull();
+      expect(nameNode!.text).toBe('normalProp');
+    });
   });
 
   describe('anonymous object scope transparency (false positive fixes)', () => {

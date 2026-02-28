@@ -99,10 +99,19 @@ function getSourceText(node: Parser.SyntaxNode, sourceCode: string): string {
   return sourceCode.substring(node.startIndex, node.endIndex);
 }
 
-function findNameNode(node: Parser.SyntaxNode, config: LanguageConfig): Parser.SyntaxNode | null {
+export function findNameNode(node: Parser.SyntaxNode, config: LanguageConfig): Parser.SyntaxNode | null {
   // Try field name 'name' first (works for Java)
   const fieldName = node.childForFieldName('name');
   if (fieldName) return fieldName;
+  // Kotlin property_declaration: name is inside variable_declaration -> identifier
+  if (config.language === 'kotlin' && node.type === 'property_declaration') {
+    const varDecls = node.descendantsOfType('variable_declaration');
+    if (varDecls.length > 0) {
+      const ids = varDecls[0].descendantsOfType('identifier');
+      if (ids.length > 0) return ids[0];
+    }
+    return null;
+  }
   // Fallback for Kotlin: first identifier child
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = node.namedChild(i)!;
@@ -817,8 +826,15 @@ export function detectUnusedPrivateMethods(
             if (nameField) calledNames.add(getSourceText(nameField, sourceCode));
           } else {
             const firstChild = inv.namedChild(0);
-            if (firstChild && (firstChild.type === 'identifier')) {
+            if (firstChild && firstChild.type === 'identifier') {
               calledNames.add(getSourceText(firstChild, sourceCode));
+            } else if (firstChild && firstChild.type === 'navigation_expression') {
+              // Extension function calls: obj.extFun() produces navigation_expression
+              // Extract the last identifier (the function name after the dot)
+              const ids = firstChild.descendantsOfType('identifier');
+              if (ids.length > 0) {
+                calledNames.add(getSourceText(ids[ids.length - 1], sourceCode));
+              }
             }
           }
         }
