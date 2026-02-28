@@ -103,7 +103,9 @@ export function findNameNode(node: Parser.SyntaxNode, config: LanguageConfig): P
   // Try field name 'name' first (works for Java)
   const fieldName = node.childForFieldName('name');
   if (fieldName) return fieldName;
-  // Kotlin property_declaration: name is inside variable_declaration -> identifier
+  // Kotlin property_declaration: name is always inside variable_declaration -> identifier.
+  // IMPORTANT: Do NOT check direct named children first for property_declaration,
+  // because the initializer expression (e.g. 'val y = usedTopProp') also has identifier children.
   if (config.language === 'kotlin' && node.type === 'property_declaration') {
     const varDecls = node.descendantsOfType('variable_declaration');
     if (varDecls.length > 0) {

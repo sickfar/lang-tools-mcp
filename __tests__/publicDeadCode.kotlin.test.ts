@@ -277,28 +277,22 @@ describe('kotlin extension functions cross-file analysis', () => {
   const dir = fixtureDir('extension_functions');
   const files = getFiles(dir);
   const noRules = resolveProfiles([], {});
+  const result = detectPublicDeadCodeInFiles(files, 'kotlin', noRules, [dir], []);
+  const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
 
   it('used extension function toTitleCase is NOT reported', () => {
-    const result = detectPublicDeadCodeInFiles(files, 'kotlin', noRules, [dir], []);
-    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
     expect(allNames).not.toContain('toTitleCase');
   });
 
   it('unused extension function toSnakeCase IS reported', () => {
-    const result = detectPublicDeadCodeInFiles(files, 'kotlin', noRules, [dir], []);
-    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
     expect(allNames).toContain('toSnakeCase');
   });
 
   it('used extension property wordCount is NOT reported', () => {
-    const result = detectPublicDeadCodeInFiles(files, 'kotlin', noRules, [dir], []);
-    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
     expect(allNames).not.toContain('wordCount');
   });
 
   it('unused extension property isBlankOrEmpty IS reported', () => {
-    const result = detectPublicDeadCodeInFiles(files, 'kotlin', noRules, [dir], []);
-    const allNames = result.files.flatMap(f => f.findings.map(x => x.name));
     expect(allNames).toContain('isBlankOrEmpty');
   });
 });
