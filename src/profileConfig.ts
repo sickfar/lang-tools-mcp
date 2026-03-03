@@ -29,6 +29,7 @@ export interface ProfileConfig {
 export interface LangToolsConfig {
   activeProfiles?: string[];
   profiles?: ProfileConfig[];
+  sortImports?: boolean;
 }
 
 // --- Resolved (compiled) Types ---

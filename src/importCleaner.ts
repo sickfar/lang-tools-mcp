@@ -8,6 +8,13 @@ import Kotlin from "@tree-sitter-grammars/tree-sitter-kotlin";
 import * as fs from "fs";
 
 /**
+ * Options for import cleanup
+ */
+export interface ImportCleanupOptions {
+  sortImports?: boolean;
+}
+
+/**
  * Interface for import information
  */
 export interface ImportInfo {
@@ -271,6 +278,59 @@ export function extractImplicitlyUsedOperators(tree: Parser.Tree, _language: 'ko
 }
 
 /**
+ * Sort imports in source code lexicographically.
+ * For Java: non-static imports first, blank line, then static imports (each group sorted).
+ * For Kotlin: all imports sorted together.
+ * Returns the original source unchanged if 0 or 1 imports.
+ */
+export function sortImportsInSource(
+  sourceCode: string,
+  imports: ImportInfo[],
+  language: 'java' | 'kotlin'
+): string {
+  if (imports.length <= 1) return sourceCode;
+
+  const firstImport = imports.reduce((min, imp) => imp.startByte < min.startByte ? imp : min, imports[0]);
+  const lastImport = imports.reduce((max, imp) => imp.endByte > max.endByte ? imp : max, imports[0]);
+
+  let blockEnd = lastImport.endByte;
+  // Include trailing newline
+  if (sourceCode[blockEnd] === '\n') {
+    blockEnd++;
+  } else if (sourceCode[blockEnd] === '\r' && sourceCode[blockEnd + 1] === '\n') {
+    blockEnd += 2;
+  }
+
+  // Detect line ending style
+  const lineEnding = sourceCode.includes('\r\n') ? '\r\n' : '\n';
+
+  let sortedBlock: string;
+
+  if (language === 'java') {
+    const nonStatic = imports.filter(i => !i.isStatic).map(i => i.text).sort();
+    const staticImports = imports.filter(i => i.isStatic).map(i => i.text).sort();
+
+    const groups: string[] = [];
+    if (nonStatic.length > 0) {
+      groups.push(nonStatic.join(lineEnding));
+    }
+    if (staticImports.length > 0) {
+      groups.push(staticImports.join(lineEnding));
+    }
+    sortedBlock = groups.join(lineEnding + lineEnding) + lineEnding;
+  } else {
+    const sorted = imports.map(i => i.text).sort();
+    sortedBlock = sorted.join(lineEnding) + lineEnding;
+  }
+
+  const before = sourceCode.substring(0, firstImport.startByte);
+  const after = sourceCode.substring(blockEnd);
+  const result = before + sortedBlock + after;
+
+  return result === sourceCode ? sourceCode : result;
+}
+
+/**
  * Remove unused imports from source code
  */
 export function removeUnusedImports(sourceCode: string, imports: ImportInfo[], usedIdentifiers: Set<string>): string {
@@ -315,7 +375,7 @@ export function removeUnusedImports(sourceCode: string, imports: ImportInfo[], u
 /**
  * Clean up unused imports in a Java file
  */
-export function cleanupJavaFile(filePath: string): boolean {
+export function cleanupJavaFile(filePath: string, options?: ImportCleanupOptions): boolean {
   try {
     const sourceCode = fs.readFileSync(filePath, 'utf-8');
     const tree = javaParser.parse(sourceCode);
@@ -327,7 +387,13 @@ export function cleanupJavaFile(filePath: string): boolean {
 
     const imports = extractJavaImports(tree, sourceCode);
     const usedIdentifiers = extractUsedIdentifiers(tree, sourceCode, 'java');
-    const modifiedCode = removeUnusedImports(sourceCode, imports, usedIdentifiers);
+    let modifiedCode = removeUnusedImports(sourceCode, imports, usedIdentifiers);
+
+    if (options?.sortImports) {
+      const freshTree = javaParser.parse(modifiedCode);
+      const freshImports = extractJavaImports(freshTree, modifiedCode);
+      modifiedCode = sortImportsInSource(modifiedCode, freshImports, 'java');
+    }
 
     if (modifiedCode !== sourceCode) {
       fs.writeFileSync(filePath, modifiedCode, 'utf-8');
@@ -344,7 +410,7 @@ export function cleanupJavaFile(filePath: string): boolean {
 /**
  * Clean up unused imports in a Kotlin file
  */
-export function cleanupKotlinFile(filePath: string): boolean {
+export function cleanupKotlinFile(filePath: string, options?: ImportCleanupOptions): boolean {
   try {
     const sourceCode = fs.readFileSync(filePath, 'utf-8');
     const tree = kotlinParser.parse(sourceCode);
@@ -358,7 +424,13 @@ export function cleanupKotlinFile(filePath: string): boolean {
     const usedIdentifiers = extractUsedIdentifiers(tree, sourceCode, 'kotlin');
     const implicitOperators = extractImplicitlyUsedOperators(tree, 'kotlin');
     for (const op of implicitOperators) usedIdentifiers.add(op);
-    const modifiedCode = removeUnusedImports(sourceCode, imports, usedIdentifiers);
+    let modifiedCode = removeUnusedImports(sourceCode, imports, usedIdentifiers);
+
+    if (options?.sortImports) {
+      const freshTree = kotlinParser.parse(modifiedCode);
+      const freshImports = extractKotlinImports(freshTree, modifiedCode);
+      modifiedCode = sortImportsInSource(modifiedCode, freshImports, 'kotlin');
+    }
 
     if (modifiedCode !== sourceCode) {
       fs.writeFileSync(filePath, modifiedCode, 'utf-8');

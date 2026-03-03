@@ -168,12 +168,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      const config = loadConfig();
+      const cleanupOptions = { sortImports: config.sortImports ?? false };
       const { resolved, errors: resolveErrors } = resolveFilePaths(paths, ".java");
       let processedCount = 0;
       const errors: string[] = resolveErrors.map(e => e.message);
 
       for (const absolutePath of resolved) {
-        const success = cleanupJavaFile(absolutePath);
+        const success = cleanupJavaFile(absolutePath, cleanupOptions);
         if (success) {
           processedCount++;
         } else {
@@ -207,12 +209,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      const config = loadConfig();
+      const cleanupOptions = { sortImports: config.sortImports ?? false };
       const { resolved, errors: resolveErrors } = resolveFilePaths(paths, ".kt");
       let processedCount = 0;
       const errors: string[] = resolveErrors.map(e => e.message);
 
       for (const absolutePath of resolved) {
-        const success = cleanupKotlinFile(absolutePath);
+        const success = cleanupKotlinFile(absolutePath, cleanupOptions);
         if (success) {
           processedCount++;
         } else {

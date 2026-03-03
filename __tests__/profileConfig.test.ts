@@ -83,6 +83,30 @@ describe('loadConfig', () => {
     const config = loadConfig();
     expect(config).toEqual({});
   });
+
+  test('sortImports missing from config returns undefined', () => {
+    const configPath = writeTempConfig(tmpDir, { activeProfiles: ['spring'] });
+    process.env.LANG_TOOLS_CONFIG = configPath;
+
+    const config = loadConfig();
+    expect(config.sortImports).toBeUndefined();
+  });
+
+  test('sortImports true is read correctly', () => {
+    const configPath = writeTempConfig(tmpDir, { sortImports: true });
+    process.env.LANG_TOOLS_CONFIG = configPath;
+
+    const config = loadConfig();
+    expect(config.sortImports).toBe(true);
+  });
+
+  test('sortImports false is read correctly', () => {
+    const configPath = writeTempConfig(tmpDir, { sortImports: false });
+    process.env.LANG_TOOLS_CONFIG = configPath;
+
+    const config = loadConfig();
+    expect(config.sortImports).toBe(false);
+  });
 });
 
 describe('mergeActiveProfiles', () => {
