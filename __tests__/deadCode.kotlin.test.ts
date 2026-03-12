@@ -1147,6 +1147,59 @@ class Test {
       expect(findings.map(f => f.name)).not.toContain('table');
     });
 
+    it('should not flag companion private const val used via $NAME in enclosing class method', () => {
+      const code = `
+class Config {
+    companion object {
+        private const val PREFIX = "app"
+        private const val UNUSED_CONST = "unused"
+    }
+
+    fun getKey(name: String): String {
+        return "\$PREFIX:\$name"
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('PREFIX');
+      expect(findings.map(f => f.name)).toContain('UNUSED_CONST');
+    });
+
+    it('should not flag companion private const val used via \${NAME} in enclosing class method', () => {
+      const code = `
+class Config {
+    companion object {
+        private const val BASE_URL = "https://api.example.com"
+    }
+
+    fun buildUrl(path: String): String {
+        return "\${BASE_URL}/\$path"
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('BASE_URL');
+    });
+
+    it('should not flag companion private const val used via $NAME within companion method', () => {
+      const code = `
+class Config {
+    companion object {
+        private const val TAG = "Config"
+
+        fun log(msg: String) {
+            println("\$TAG: \$msg")
+        }
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('TAG');
+    });
+
     it('should still flag non-override local in same method as override property', () => {
       // Verifies that hasOverrideModifier check is targeted:
       // only the override property is skipped, not other locals in the same method

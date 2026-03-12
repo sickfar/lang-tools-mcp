@@ -666,14 +666,24 @@ export function detectUnusedFields(
 
     // Kotlin: collect string template identifiers from this class scope once per class body.
     // Uses isInSameClassScope guard to exclude strings in nested class bodies.
+    // For companion objects, also scan the parent class body (bidirectional scope).
     const classStringTemplateIds: Set<string> = config.language === 'kotlin'
       ? (() => {
           const ids = new Set<string>();
-          for (const strNode of classBody.descendantsOfType(['string_literal', 'multiline_string_literal'])) {
-            if (!isInSameClassScope(strNode, classBody, config)) continue;
-            const text = getSourceText(strNode, sourceCode);
-            const matches = text.matchAll(/\$([a-zA-Z_]\w*)/g);
-            for (const match of matches) ids.add(match[1]);
+          const bodiesToScan: Parser.SyntaxNode[] = [classBody];
+          if (classBody.parent?.type === 'companion_object') {
+            const parentClassBody = classBody.parent.parent;
+            if (parentClassBody && parentClassBody.type === config.classBodyType) {
+              bodiesToScan.push(parentClassBody);
+            }
+          }
+          for (const bodyToScan of bodiesToScan) {
+            for (const strNode of bodyToScan.descendantsOfType(['string_literal', 'multiline_string_literal'])) {
+              if (!isInSameClassScope(strNode, classBody, config)) continue;
+              const text = getSourceText(strNode, sourceCode);
+              const matches = text.matchAll(/\$([a-zA-Z_]\w*)/g);
+              for (const match of matches) ids.add(match[1]);
+            }
           }
           return ids;
         })()
