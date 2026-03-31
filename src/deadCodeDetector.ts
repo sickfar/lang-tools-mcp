@@ -840,9 +840,12 @@ export function detectUnusedPrivateMethods(
             const firstChild = inv.namedChild(0);
             if (firstChild && firstChild.type === 'identifier') {
               calledNames.add(getSourceText(firstChild, sourceCode));
-            } else if (firstChild && firstChild.type === 'navigation_expression') {
-              // Extension function calls: obj.extFun() produces navigation_expression
-              // Extract the last identifier (the function name after the dot)
+            } else if (firstChild && (
+              firstChild.type === 'navigation_expression' ||
+              firstChild.type === 'unary_expression'
+            )) {
+              // navigation_expression: obj.extFun() — extract function name after the dot
+              // unary_expression: !func() or -func() — unary operator wraps the callee name
               const ids = firstChild.descendantsOfType('identifier');
               if (ids.length > 0) {
                 calledNames.add(getSourceText(ids[ids.length - 1], sourceCode));

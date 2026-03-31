@@ -704,6 +704,58 @@ class Test {
 
       expect(findings.map(f => f.name)).toContain('unusedCompanionHelper');
     });
+
+    it('should not flag private method called with negation operator', () => {
+      const code = `
+class Foo {
+    private fun isListOfMaps(arg: Any?): Boolean { return false }
+    fun bar(arg: Any?) {
+        if (!isListOfMaps(arg)) { println("yes") }
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('isListOfMaps');
+    });
+
+    it('should not flag private method called with unary minus operator', () => {
+      const code = `
+class Foo {
+    private fun computeValue(): Int { return 42 }
+    fun bar(): Int { return -computeValue() }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('computeValue');
+    });
+
+    it('should not flag private method called with negation via this', () => {
+      const code = `
+class Foo {
+    private fun check(): Boolean { return true }
+    fun bar() { if (!this.check()) { } }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('check');
+    });
+
+    it('should still flag unused method when unary-called methods coexist', () => {
+      const code = `
+class Foo {
+    private fun isReady(): Boolean { return true }
+    private fun neverCalled(): Boolean { return false }
+    fun bar() { if (!isReady()) { } }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+      expect(findings.map(f => f.name)).not.toContain('isReady');
+      expect(findings.map(f => f.name)).toContain('neverCalled');
+    });
   });
 
   describe('comprehensive real-world scenarios', () => {
