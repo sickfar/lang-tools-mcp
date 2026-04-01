@@ -303,6 +303,44 @@ function collectScopedIdentifiers(
   return allIds;
 }
 
+/** For Kotlin: extract identifiers from primary constructor default value expressions */
+function collectConstructorDefaultIdentifiers(
+  classNode: Parser.SyntaxNode,
+  sourceCode: string,
+  config: LanguageConfig
+): Set<string> {
+  const ids = new Set<string>();
+  if (config.language !== 'kotlin') return ids;
+
+  // Find primary_constructor - it's a direct child of class_declaration
+  const primaryConstructor = classNode.childForFieldName('primary_constructor') ??
+    classNode.descendantsOfType('primary_constructor')[0];
+
+  if (!primaryConstructor) return ids;
+
+  // Get all class_parameter nodes
+  const params = primaryConstructor.descendantsOfType('class_parameter');
+  for (const param of params) {
+    // Collect all identifiers in the parameter (includes default value expressions)
+    const paramIds = param.descendantsOfType('identifier');
+
+    // The first identifier is the parameter name - skip it
+    // All other identifiers are part of the type or default value
+    if (paramIds.length > 1) {
+      for (let i = 1; i < paramIds.length; i++) {
+        ids.add(getSourceText(paramIds[i], sourceCode));
+      }
+    }
+
+    // Also extract $name from string templates in default values
+    for (const id of extractKotlinStringTemplateIds(param, sourceCode)) {
+      ids.add(id);
+    }
+  }
+
+  return ids;
+}
+
 /** Check if a parameter node is inside a function_type (type annotation) rather than a formal parameter list */
 function isInsideFunctionType(paramNode: Parser.SyntaxNode): boolean {
   let current = paramNode.parent;
@@ -689,6 +727,19 @@ export function detectUnusedFields(
         })()
       : new Set<string>();
 
+    // Kotlin: for companion objects, collect identifiers from enclosing class constructor default values
+    const constructorDefaultIds: Set<string> = config.language === 'kotlin' && classBody.parent?.type === 'companion_object'
+      ? (() => {
+          const companionNode = classBody.parent;
+          const ownerClassBody = companionNode.parent;
+          const ownerClass = ownerClassBody?.parent;
+          if (ownerClass && ownerClass.type === config.classDeclarationType) {
+            return collectConstructorDefaultIdentifiers(ownerClass, sourceCode, config);
+          }
+          return new Set<string>();
+        })()
+      : new Set<string>();
+
     for (const fieldNode of fieldNodes) {
       if (!isPrivateField(fieldNode, sourceCode, config)) continue;
 
@@ -711,7 +762,7 @@ export function detectUnusedFields(
           parent = parent.parent;
         }
         return true;
-      }) || classStringTemplateIds.has(fieldName);
+      }) || classStringTemplateIds.has(fieldName) || constructorDefaultIds.has(fieldName);
 
       if (!isUsed) {
         findings.push({

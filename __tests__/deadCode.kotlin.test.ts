@@ -342,6 +342,57 @@ class Test {
       expect(names).not.toContain('age');
       expect(names).not.toContain('lazyField');
     });
+
+    // Constructor default value tests
+    it('should not flag companion const used as constructor default value', () => {
+      const code = `
+class ApiClient(
+    private val endpoint: String = DEFAULT_ENDPOINT
+) {
+    companion object {
+        private const val DEFAULT_ENDPOINT = "https://api.example.com"
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+
+      expect(findings.map(f => f.name)).not.toContain('DEFAULT_ENDPOINT');
+    });
+
+    it('should not flag companion val used as constructor default value', () => {
+      const code = `
+class ConfigHolder(
+    private val timeout: Duration = MAX_TIMEOUT
+) {
+    companion object {
+        private val MAX_TIMEOUT: Duration = Duration.ofSeconds(60)
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+
+      expect(findings.map(f => f.name)).not.toContain('MAX_TIMEOUT');
+    });
+
+    it('should still flag unused companion constant when not used in constructor', () => {
+      const code = `
+class Service(
+    private val name: String = "default"
+) {
+    companion object {
+        private const val UNUSED_CONFIG = "never_used"
+    }
+
+    fun process() = println(name)
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+
+      expect(findings.map(f => f.name)).toContain('UNUSED_CONFIG');
+    });
   });
 
   describe('detectUnusedPrivateMethods', () => {
