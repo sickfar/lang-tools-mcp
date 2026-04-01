@@ -393,6 +393,44 @@ class Service(
 
       expect(findings.map(f => f.name)).toContain('UNUSED_CONFIG');
     });
+
+    // Inner class access to companion object members
+    it('should not flag companion member used in inner class', () => {
+      const code = `
+class TestContainer {
+    companion object {
+        private const val CONFIG_KEY = "settings.key"
+    }
+
+    inner class InnerProcessor {
+        fun load() = println(CONFIG_KEY)
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+
+      expect(findings.map(f => f.name)).not.toContain('CONFIG_KEY');
+    });
+
+    it('should flag companion member used only in regular nested class (not inner)', () => {
+      const code = `
+class Container {
+    companion object {
+        private const val INTERNAL_KEY = "internal"
+    }
+
+    class NestedProcessor {
+        fun process() = println(INTERNAL_KEY)
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedFields(tree, code, KOTLIN_CONFIG);
+
+      // Regular nested classes cannot access private companion members
+      expect(findings.map(f => f.name)).toContain('INTERNAL_KEY');
+    });
   });
 
   describe('detectUnusedPrivateMethods', () => {
@@ -578,6 +616,25 @@ class ServiceFactory(
       const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
 
       expect(findings.map(f => f.name)).not.toContain('createDefaultConfig');
+    });
+
+    // Inner class access to companion object methods
+    it('should not flag companion method called from inner class', () => {
+      const code = `
+class Processor {
+    companion object {
+        private fun formatOutput(data: String) = "[$data]"
+    }
+
+    inner class Worker {
+        fun process(input: String) = formatOutput(input)
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      expect(findings.map(f => f.name)).not.toContain('formatOutput');
     });
 
   });

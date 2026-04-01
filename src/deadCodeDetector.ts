@@ -95,6 +95,34 @@ function sameNode(a: Parser.SyntaxNode, b: Parser.SyntaxNode): boolean {
   return a.startIndex === b.startIndex && a.endIndex === b.endIndex;
 }
 
+/** Check if a class_declaration has the 'inner' modifier (Kotlin) */
+function isInnerClass(classNode: Parser.SyntaxNode, sourceCode: string): boolean {
+  // Check first child for modifiers node
+  for (let i = 0; i < classNode.namedChildCount; i++) {
+    const child = classNode.namedChild(i)!;
+    if (child.type === 'modifiers') {
+      return getSourceText(child, sourceCode).includes('inner');
+    }
+  }
+  return false;
+}
+
+/** Check if innerClass is contained within outerClass's class_body (directly or indirectly) */
+function isClassContainedIn(
+  innerClass: Parser.SyntaxNode,
+  outerClassBody: Parser.SyntaxNode,
+  config: LanguageConfig
+): boolean {
+  let current: Parser.SyntaxNode | null = innerClass.parent;
+  while (current) {
+    if (sameNode(current, outerClassBody)) return true;
+    // Stop at class boundaries
+    if (current.type === config.classDeclarationType) break;
+    current = current.parent;
+  }
+  return false;
+}
+
 function getSourceText(node: Parser.SyntaxNode, sourceCode: string): string {
   return sourceCode.substring(node.startIndex, node.endIndex);
 }
@@ -230,7 +258,12 @@ export function collectIdentifiers(node: Parser.SyntaxNode, sourceCode: string, 
 
 /** Check if an identifier node is in the same class scope as targetClassBody
  *  (i.e., no nested class_declaration/companion_object boundary between them) */
-function isInSameClassScope(idNode: Parser.SyntaxNode, targetClassBody: Parser.SyntaxNode, config: LanguageConfig): boolean {
+function isInSameClassScope(
+  idNode: Parser.SyntaxNode,
+  targetClassBody: Parser.SyntaxNode,
+  config: LanguageConfig,
+  sourceCode: string
+): boolean {
   let current = idNode.parent;
   while (current) {
     if (sameNode(current, targetClassBody)) return true;
@@ -261,6 +294,22 @@ function isInSameClassScope(idNode: Parser.SyntaxNode, targetClassBody: Parser.S
           if (targetCompanionNode.parent && sameNode(targetCompanionNode.parent, current)) {
             // Identifier in parent class, target is companion - they share scope
             return true;
+          }
+        }
+        // Case 3: inner class accessing companion object of enclosing class
+        // In Kotlin, inner classes can access private members of the companion object
+        if (targetClassBody.parent?.type === 'companion_object') {
+          const companionOwnerClassBody = targetClassBody.parent.parent;
+          const companionOwnerClass = companionOwnerClassBody?.parent;
+          if (companionOwnerClass && companionOwnerClass.type === config.classDeclarationType) {
+            // Check if current class is an inner class inside the companion owner
+            const currentClass = current.parent;
+            if (currentClass && currentClass.type === config.classDeclarationType) {
+              if (isInnerClass(currentClass, sourceCode) &&
+                  isClassContainedIn(currentClass, companionOwnerClassBody, config)) {
+                return true;
+              }
+            }
           }
         }
       }
@@ -294,7 +343,7 @@ function collectScopedIdentifiers(
   for (const bodyToScan of bodiesToScan) {
     for (const idType of config.identifierTypes) {
       for (const idNode of bodyToScan.descendantsOfType(idType)) {
-        if (isInSameClassScope(idNode, classBody, config)) {
+        if (isInSameClassScope(idNode, classBody, config, sourceCode)) {
           allIds.push({ name: getSourceText(idNode, sourceCode), node: idNode });
         }
       }
@@ -717,7 +766,7 @@ export function detectUnusedFields(
           }
           for (const bodyToScan of bodiesToScan) {
             for (const strNode of bodyToScan.descendantsOfType(['string_literal', 'multiline_string_literal'])) {
-              if (!isInSameClassScope(strNode, classBody, config)) continue;
+              if (!isInSameClassScope(strNode, classBody, config, sourceCode)) continue;
               const text = getSourceText(strNode, sourceCode);
               const matches = text.matchAll(/\$([a-zA-Z_]\w*)/g);
               for (const match of matches) ids.add(match[1]);
@@ -883,7 +932,7 @@ export function detectUnusedPrivateMethods(
     for (const bodyToScan of bodiesToScan) {
       for (const invType of config.methodInvocationTypes) {
         for (const inv of bodyToScan.descendantsOfType(invType)) {
-          if (!isInSameClassScope(inv, classBody, config)) continue;
+          if (!isInSameClassScope(inv, classBody, config, sourceCode)) continue;
           if (config.language === 'java') {
             const nameField = inv.childForFieldName('name');
             if (nameField) calledNames.add(getSourceText(nameField, sourceCode));
@@ -911,7 +960,7 @@ export function detectUnusedPrivateMethods(
     for (const bodyToScan of bodiesToScan) {
       for (const refType of config.methodReferenceTypes) {
         for (const ref of bodyToScan.descendantsOfType(refType)) {
-          if (!isInSameClassScope(ref, classBody, config)) continue;
+          if (!isInSameClassScope(ref, classBody, config, sourceCode)) continue;
           const ids = ref.descendantsOfType('identifier');
           if (ids.length > 0) {
             calledNames.add(getSourceText(ids[ids.length - 1], sourceCode));
