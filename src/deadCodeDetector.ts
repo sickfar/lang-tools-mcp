@@ -920,6 +920,19 @@ export function detectUnusedPrivateMethods(
       }
     }
 
+    // For Kotlin: collect method calls from enclosing class constructor default values
+    if (config.language === 'kotlin' && classBody.parent?.type === 'companion_object') {
+      const companionNode = classBody.parent;
+      const ownerClassBody = companionNode.parent;
+      const ownerClass = ownerClassBody?.parent;
+      if (ownerClass && ownerClass.type === config.classDeclarationType) {
+        const constructorIds = collectConstructorDefaultIdentifiers(ownerClass, sourceCode, config);
+        for (const id of constructorIds) {
+          calledNames.add(id);
+        }
+      }
+    }
+
     for (const methodNode of methodNodes) {
       const methodName = getMethodName(methodNode, sourceCode, config);
 

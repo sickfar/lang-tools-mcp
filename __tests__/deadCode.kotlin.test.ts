@@ -563,6 +563,23 @@ class Test {
       expect(findings.map(f => f.name)).not.toContain('doubled');
     });
 
+    // Constructor default value tests
+    it('should not flag private method called in constructor default value', () => {
+      const code = `
+class ServiceFactory(
+    private val config: Config = createDefaultConfig()
+) {
+    companion object {
+        private fun createDefaultConfig(): Config = Config()
+    }
+}
+`;
+      const tree = parseKotlin(code);
+      const findings = detectUnusedPrivateMethods(tree, code, KOTLIN_CONFIG);
+
+      expect(findings.map(f => f.name)).not.toContain('createDefaultConfig');
+    });
+
   });
 
   describe('findNameNode for extension functions', () => {
